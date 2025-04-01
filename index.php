@@ -7,7 +7,6 @@ $channels = [
     "Aaj Tak" => "aaj_tak"
 ];
 ?>
-
 <!DOCTYPE html>
 <html>
 <head>
