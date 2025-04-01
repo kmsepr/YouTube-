@@ -12,15 +12,15 @@ $channels = [
     "aaj_tak" => "https://feeds.intoday.in/aajtak/api/aajtakhd/master.m3u8"
 ];
 
-// Check if a valid channel is requested
+
+// Check if the requested channel exists
 if (!isset($_GET['channel']) || !array_key_exists($_GET['channel'], $channels)) {
     die("Invalid channel! Use ?channel=safari_tv");
 }
 
 $url = escapeshellarg($channels[$_GET['channel']]);
-header("Content-Type: video/mp4");
+header("Content-Type: video/3gpp");
 
-// Stream the M3U8 as MP4 over HTTP
-passthru("ffmpeg -i $url -c:v libx264 -preset ultrafast -tune zerolatency -b:v 300k -c:a aac -b:a 64k -f mp4 -movflags frag_keyframe+empty_moov -strict experimental -");
+// Convert M3U8 to **H.263 + AAC** (3GP format for Symbian)
+passthru("ffmpeg -i $url -c:v h263 -b:v 200k -c:a aac -b:a 48k -ar 22050 -ac 1 -f 3gp -movflags frag_keyframe+empty_moov -");
 ?>
-
