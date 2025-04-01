@@ -1,20 +1,20 @@
-FROM debian:latest
+# Use Python 3.8 as the base image
+FROM python:3.8-slim
 
-# Install Apache, PHP, and FFmpeg
-RUN apt update && apt install -y apache2 php libapache2-mod-php ffmpeg
+# Install FFmpeg and dependencies
+RUN apt update && apt install -y ffmpeg
 
-# Enable Apache modules
-RUN a2enmod rewrite
+# Set the working directory inside the container
+WORKDIR /app
 
-# Set up the web directory
-WORKDIR /var/www/html
+# Copy the Python script into the container
+COPY app.py /app/app.py
 
-# Copy PHP scripts
-COPY stream.php /var/www/html/stream.php
-COPY index.php /var/www/html/index.php  # New Page for Streaming UI
+# Install required Python libraries
+RUN pip install Flask
 
-# Expose port 80
-EXPOSE 80
+# Expose port 5000 for the Flask app
+EXPOSE 5000
 
-# Start Apache in the foreground
-CMD ["apachectl", "-D", "FOREGROUND"]
+# Command to run the Flask app
+CMD ["python", "app.py"]
