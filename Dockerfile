@@ -19,11 +19,11 @@ RUN apt update && apt install -y \
 # Copy the application code
 COPY . .
 
-# Set environment variables (example, modify as needed)
-ENV FLASK_APP=app.py
+# Install Python dependencies (add requirements.txt if needed)
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Expose the port the app runs on
+# Expose the port the app runs on (if you're using Flask)
 EXPOSE 5000
 
-# Run the application
-CMD ["flask", "run", "--host=0.0.0.0"]
+# Run the streaming script directly
+CMD ["python", "stream.py"]
