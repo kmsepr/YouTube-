@@ -9,7 +9,7 @@ $channels = [
     "amrita_tv" => "https://dr1zhpsuem5f4.cloudfront.net/master.m3u8",
     "24_news" => "https://segment.yuppcdn.net/110322/channel24/playlist.m3u8",
     "mazhavil_manorama" => "https://yuppmedtaorire.akamaized.net/v1/master/a0d007312bfd99c47f76b77ae26b1ccdaae76cb1/mazhavilmanorama_nim_https/050522/mazhavilmanorama/playlist.m3u8",
-    "aaj_tak" => "https://lmil.live-s.cdn.bitgravity.com/cdn-live/_definst_/lmil/live/aajtak_app.smil/playlist.m3u8"
+    "aaj_tak" => "https://feeds.intoday.in/aajtak/api/aajtakhd/master.m3u8"
 ];
 
 // Check if a valid channel is requested
