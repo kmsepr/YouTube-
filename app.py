@@ -67,6 +67,12 @@ def stream():
                 break
             yield chunk
 
+        # Check for errors in FFmpeg execution
+        stderr = process.stderr.read().decode()
+        if stderr:
+            print(f"FFmpeg error: {stderr}")
+            return "An error occurred while processing the stream.", 500
+
     # Set the correct content-type for the 3GP video stream
     return Response(generate(), content_type='video/3gpp')
 
