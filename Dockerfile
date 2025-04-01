@@ -1,23 +1,20 @@
-# Use a lightweight Python base image
+# Use an official Python runtime as a parent image
 FROM python:3.8-slim
 
-# Set the working directory
+# Set the working directory in the container
 WORKDIR /app
 
-# Install FFmpeg with only necessary dependencies
-RUN apt update && apt install -y --no-install-recommends \
-    ffmpeg \
-    libssl-dev && \
-    apt clean && rm -rf /var/lib/apt/lists/*
+# Copy the current directory contents into the container
+COPY . /app
 
-# Copy the application code
-COPY . .
-
-# Install Python dependencies
+# Install the necessary dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Expose the Flask port
+# Install FFmpeg
+RUN apt-get update && apt-get install -y ffmpeg
+
+# Make port 5000 available to the world outside the container
 EXPOSE 5000
 
-# Run the streaming script
-CMD ["python", "stream.py"]
+# Run the Flask app
+CMD ["python", "app.py"]
