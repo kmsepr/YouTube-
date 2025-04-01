@@ -16,6 +16,6 @@ if (!isset($_GET['channel']) || !array_key_exists($_GET['channel'], $channels)) 
 $url = escapeshellarg($channels[$_GET['channel']]);
 header("Content-Type: video/3gpp");
 
-// Convert M3U8 to **H.263 + AAC** (3GP format for Symbian)
-passthru("ffmpeg -i $url -c:v h263 -b:v 128k -s 176x144 -r 15 -c:a aac -b:a 32k -ac 1 -ar 22050 -f 3gp -movflags frag_keyframe+empty_moov -");
+// Convert M3U8 to **H.263 + AMR-WB** (3GP format for Symbian)
+passthru("ffmpeg -i $url -map 0:v:3 -map 0:a:1 -acodec amr_wb -ar 16000 -ac 1 -vcodec h263 -vb 70k -r 15 -vf scale=176:144 -f 3gp -movflags frag_keyframe+empty_moov -");
 ?>
