@@ -9,8 +9,9 @@ RUN a2enmod rewrite
 # Set up the web directory
 WORKDIR /var/www/html
 
-# Copy your PHP script to the server
+# Copy PHP scripts
 COPY stream.php /var/www/html/stream.php
+COPY index.php /var/www/html/index.php  # New Page for Streaming UI
 
 # Expose port 80
 EXPOSE 80
