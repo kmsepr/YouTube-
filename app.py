@@ -19,11 +19,11 @@ def index():
     return '''
         <h2>Click a Channel to Play</h2>
         <ul>
-            <li><a href="/stream?safari_tv">Safari TV</a></li>
-            <li><a href="/stream?victers_tv">Victers TV</a></li>
-            <li><a href="/stream?flowers_tv">Flowers TV</a></li>
-            <li><a href="/stream?manorama_news">Manorama News</a></li>
-            <li><a href="/stream?aaj_tak">Aaj Tak</a></li>
+            <li><a href="/stream?channel=safari_tv">Safari TV</a></li>
+            <li><a href="/stream?channel=victers_tv">Victers TV</a></li>
+            <li><a href="/stream?channel=flowers_tv">Flowers TV</a></li>
+            <li><a href="/stream?channel=manorama_news">Manorama News</a></li>
+            <li><a href="/stream?channel=aaj_tak">Aaj Tak</a></li>
         </ul>
     '''
 
@@ -33,7 +33,7 @@ def stream():
     channel = request.args.get('channel')
 
     # Check if the requested channel exists in the list
-    if channel not in channels:
+    if not channel or channel not in channels:
         return "Invalid channel! Please choose a valid channel.", 400
 
     # Get the M3U8 stream URL for the selected channel
@@ -43,8 +43,8 @@ def stream():
     ffmpeg_command = [
         'ffmpeg',
         '-i', url,                           # Input URL (M3U8)
-        '-map', '0:v:3',                      # Video stream
-        '-map', '0:a:1',                      # Audio stream
+        '-map', '0:v:0',                      # Video stream
+        '-map', '0:a:0',                      # Audio stream
         '-acodec', 'amr_wb',                  # AMR-WB codec for audio
         '-ar', '16000',                       # Audio sampling rate
         '-ac', '1',                           # Mono audio channel
