@@ -2,7 +2,7 @@
 FROM python:3.8-slim
 
 # Install FFmpeg and dependencies
-RUN apt update && apt install -y ffmpeg
+RUN apt update && apt install -y ffmpeg && rm -rf /var/lib/apt/lists/*
 
 # Set the working directory inside the container
 WORKDIR /app
@@ -11,7 +11,7 @@ WORKDIR /app
 COPY app.py /app/app.py
 
 # Install required Python libraries
-RUN pip install Flask
+RUN pip install --no-cache-dir Flask
 
 # Expose port 5000 for the Flask app
 EXPOSE 5000
