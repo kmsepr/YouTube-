@@ -4,7 +4,7 @@ FROM python:3.8-slim
 # Set working directory
 WORKDIR /app
 
-# Install required dependencies for FFmpeg (excluding libfdk-aac-dev)
+# Install required dependencies for FFmpeg
 RUN apt update && apt install -y \
     build-essential \
     yasm \
@@ -14,15 +14,16 @@ RUN apt update && apt install -y \
     libvo-amrwbenc-dev \
     pkg-config \
     libx264-dev \
-    libmp3lame-dev && rm -rf /var/lib/apt/lists/*
+    libmp3lame-dev \
+    ffmpeg && rm -rf /var/lib/apt/lists/*
 
 # Copy the application code
 COPY . .
 
-# Install Python dependencies (add requirements.txt if needed)
+# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Expose the port the app runs on (if you're using Flask)
+# Expose the port the app runs on (Flask default port)
 EXPOSE 5000
 
 # Run the streaming script directly
