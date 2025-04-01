@@ -15,11 +15,22 @@ RUN apt-get update && \
     pkg-config \
     wget \
     libx264-dev \
-    libfdk-aac-dev \
     libvpx-dev \
     libfreetype6-dev \
     libmp3lame-dev \
-    libopus-dev && \
+    libopus-dev \
+    libssl-dev \
+    libfaac-dev && \
+    # Download and install libfdk-aac from source
+    wget https://github.com/mstorsjo/fdk-aac/archive/refs/tags/v2.0.2.tar.gz && \
+    tar -xzvf v2.0.2.tar.gz && \
+    cd fdk-aac-2.0.2 && \
+    autoreconf -fiv && \
+    ./configure --enable-shared && \
+    make && \
+    make install && \
+    cd .. && \
+    rm -rf fdk-aac-2.0.2 v2.0.2.tar.gz && \
     # Install ffmpeg from source with support for AMR-WB, 3GP, and other codecs
     wget https://ffmpeg.org/releases/ffmpeg-4.4.tar.bz2 && \
     tar -xjf ffmpeg-4.4.tar.bz2 && \
@@ -39,5 +50,5 @@ EXPOSE 5000
 # Define environment variable
 ENV NAME World
 
-# Run stream.py when the container launches
+# Run app.py when the container launches
 CMD ["python", "stream.py"]
