@@ -19,8 +19,7 @@ RUN apt-get update && \
     libfreetype6-dev \
     libmp3lame-dev \
     libopus-dev \
-    libssl-dev \
-    libfaac-dev && \
+    libssl-dev && \
     # Download and install libfdk-aac from source
     wget https://github.com/mstorsjo/fdk-aac/archive/refs/tags/v2.0.2.tar.gz && \
     tar -xzvf v2.0.2.tar.gz && \
