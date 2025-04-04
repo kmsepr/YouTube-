@@ -4,9 +4,8 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y \
     ffmpeg \
-    libxml2-dev \
-    libssl-dev \
-    build-essential \
+    libopencore-amrnb0 \
+    libopencore-amrnb-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -16,4 +15,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY stream.py .
 
 EXPOSE 8080
+
 CMD ["python", "stream.py"]
