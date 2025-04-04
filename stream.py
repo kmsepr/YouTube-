@@ -3,6 +3,7 @@ import subprocess
 
 app = Flask(__name__)
 
+# Channel list
 CHANNELS = {
     "safari_tv": "https://j78dp346yq5r-hls-live.5centscdn.com/safari/live.stream/chunks.m3u8",
     "victers_tv": "https://932y4x26ljv8-hls-live.5centscdn.com/victers/tv.stream/victers/tv1/chunks.m3u8",
@@ -19,42 +20,32 @@ CHANNELS = {
 
 @app.route("/stream")
 def stream():
-    # Get channel name from the URL query string
     channel = request.args.get("channel")
-
-    # Check if the channel exists
     if channel not in CHANNELS:
         return "Invalid channel", 400
 
     stream_url = CHANNELS[channel]
 
-    # Function to generate the video stream
     def generate():
         command = [
             "ffmpeg", "-re", "-i", stream_url,
-            "-c:v", "h263", "-b:v", "70k", "-r", "15", "-vf", "scale=176:144",  # Video transcoding
-            "-c:a", "aac", "-b:a", "32k", "-ac", "1", "-ar", "16000",  # Audio transcoding
-            "-f", "3gp",  # Output container format
-            "pipe:1"  # Output to stdout
+            "-c:v", "h263", "-b:v", "70k", "-r", "15", "-vf", "scale=176:144",
+            "-c:a", "aac", "-profile:a", "aac_low", "-b:a", "32k", "-ac", "1", "-ar", "16000",
+            "-f", "3gp",
+            "pipe:1"
         ]
 
-        # Start the FFmpeg process
         process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
-        
         try:
-            # Continuously read the output stream from FFmpeg
             while True:
                 chunk = process.stdout.read(1024)
                 if not chunk:
                     break
                 yield chunk
         finally:
-            # Make sure the FFmpeg process is terminated
             process.terminate()
 
-    # Return the video stream as an HTTP response with the proper content type
-    return Response(generate(), content_type="video/3gp")
+    return Response(generate(), content_type="video/3gpp")
 
 if __name__ == "__main__":
-    # Run the Flask application
     app.run(host="0.0.0.0", port=8080, threaded=True)
