@@ -20,24 +20,26 @@ def stream():
         command = [
             "ffmpeg",
             "-user_agent", "Mozilla/5.0",
-            "-timeout", "1000000",
             "-reconnect", "1",
             "-reconnect_streamed", "1",
             "-reconnect_delay_max", "2",
-            "-re",  # Real-time simulation
             "-i", stream_url,
-            "-acodec", "amr_wb",
-            "-ar", "16000",
-            "-ac", "1",
-            "-vcodec", "h263",
-            "-vb", "70k",
-            "-r", "15",
             "-vf", "scale=176:144",
+            "-vcodec", "h263",
+            "-b:v", "70k",
+            "-r", "15",
+            "-acodec", "libopencore_amrnb",
+            "-ar", "8000",
+            "-ac", "1",
             "-f", "3gp",
             "pipe:1"
         ]
 
-        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=10**5)
+
+        # Optional: log stderr for debugging
+        for line in process.stderr:
+            print(line.decode('utf-8'), end='')
 
         try:
             while True:
@@ -46,7 +48,7 @@ def stream():
                     break
                 yield chunk
         finally:
-            process.terminate()
+            process.kill()
 
     return Response(generate(), content_type="video/3gp")
 
