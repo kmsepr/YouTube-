@@ -1,10 +1,12 @@
 from flask import Flask, request, Response
 import subprocess
+import threading
 
 app = Flask(__name__)
 
 CHANNELS = {
-    "gtrk_volga": "https://gtrk-volga.ru/media/hr24/stream1.m3u8"
+    "gtrk_volga": "https://gtrk-volga.ru/media/hr24/stream1.m3u8",
+    "kairali_we": "https://yuppmedtaorire.akamaized.net/v1/master/a0d007312bfd99c47f76b77ae26b1ccdaae76cb1/wetv_nim_https/050522/wetv/playlist.m3u8"
 }
 
 @app.route("/stream")
@@ -35,11 +37,13 @@ def stream():
             "pipe:1"
         ]
 
-        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=10**5)
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-        # Optional: log stderr for debugging
-        for line in process.stderr:
-            print(line.decode('utf-8'), end='')
+        def read_stderr():
+            for line in iter(process.stderr.readline, b''):
+                print("[FFMPEG]", line.decode("utf-8").strip())
+
+        threading.Thread(target=read_stderr, daemon=True).start()
 
         try:
             while True:
