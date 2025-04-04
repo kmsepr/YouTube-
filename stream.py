@@ -21,11 +21,11 @@ CHANNELS = {
 def stream():
     # Get channel name from the URL query string
     channel = request.args.get("channel")
-    
+
     # Check if the channel exists
     if channel not in CHANNELS:
         return "Invalid channel", 400
-    
+
     stream_url = CHANNELS[channel]
 
     # Function to generate the video stream
@@ -34,7 +34,7 @@ def stream():
             "ffmpeg", "-re", "-i", stream_url,
             "-c:v", "h263", "-b:v", "70k", "-r", "15", "-vf", "scale=176:144",  # Video transcoding
             "-c:a", "aac", "-b:a", "32k", "-ac", "1", "-ar", "16000",  # Audio transcoding
-            "-f", "mp4", "-movflags", "frag_keyframe+empty_moov",  # Output container format
+            "-f", "3gp",  # Output container format
             "pipe:1"  # Output to stdout
         ]
 
@@ -53,7 +53,7 @@ def stream():
             process.terminate()
 
     # Return the video stream as an HTTP response with the proper content type
-    return Response(generate(), content_type="video/mp4")
+    return Response(generate(), content_type="video/3gp")
 
 if __name__ == "__main__":
     # Run the Flask application
