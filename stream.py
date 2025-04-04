@@ -28,9 +28,8 @@ def stream():
             yield chunk
 
     headers = {
-        "Content-Type": "video/3gpp",
-        "Content-Disposition": "inline"  # Forces streaming instead of downloading
-    }
+    "Content-Type": "application/sdp"
+}
     return Response(generate(), headers=headers)
 
 if __name__ == "__main__":
