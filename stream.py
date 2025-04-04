@@ -4,7 +4,7 @@ import subprocess
 app = Flask(__name__)
 
 CHANNELS = {
-    "kairali_we": "https://yuppmedtaorire.akamaized.net/v1/master/a0d007312bfd99c47f76b77ae26b1ccdaae76cb1/wetv_nim_https/050522/wetv/playlist.m3u8"
+    "gtrk_volga": "https://gtrk-volga.ru/media/hr24/stream1.m3u8"
 }
 
 @app.route("/stream")
@@ -19,22 +19,25 @@ def stream():
     def generate():
         command = [
             "ffmpeg",
-            "-re",  # simulate real-time input
+            "-user_agent", "Mozilla/5.0",
+            "-timeout", "1000000",
+            "-reconnect", "1",
+            "-reconnect_streamed", "1",
+            "-reconnect_delay_max", "2",
+            "-re",  # Real-time simulation
             "-i", stream_url,
-            "-vf", "scale=176:144",
-            "-c:v", "h263",
-            "-b:v", "128k",
-            "-r", "15",
-            "-c:a", "aac",
-            "-b:a", "32k",
+            "-acodec", "amr_wb",
+            "-ar", "16000",
             "-ac", "1",
-            "-ar", "8000",
+            "-vcodec", "h263",
+            "-vb", "70k",
+            "-r", "15",
+            "-vf", "scale=176:144",
             "-f", "3gp",
             "pipe:1"
         ]
 
-        # Start FFmpeg and capture both stdout and stderr
-        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
 
         try:
             while True:
