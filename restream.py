@@ -40,7 +40,7 @@ def fetch_latest_video_url():
         return None
 
 def update_video_cache():
-    """Background task to update cached video every 5 minutes."""
+    """Background task to update cached video every 30 minutes."""
     while True:
         logging.info("Refreshing latest video URL...")
         url = fetch_latest_video_url()
@@ -50,7 +50,7 @@ def update_video_cache():
             logging.info(f"✅ Cached latest video: {url}")
         else:
             logging.warning("❌ Failed to update video cache.")
-        time.sleep(300)  # Refresh every 5 minutes
+        time.sleep(1800)  # Refresh every 30 minutes
 
 # Start background thread
 threading.Thread(target=update_video_cache, daemon=True).start()
@@ -73,11 +73,11 @@ def stream_mp3():
 
     ffmpeg_cmd = [
         "ffmpeg", "-i", "pipe:0",
-        "-vn", "-acodec", "libmp3lame", "-f", "mp3", "pipe:1"
+        "-vn", "-acodec", "libmp3lame", "-b:a", "40k", "-ac", "1", "-f", "mp3", "pipe:1"
     ]
 
-    ytdlp = subprocess.Popen(ytdlp_cmd, stdout=subprocess.PIPE)
-    ffmpeg = subprocess.Popen(ffmpeg_cmd, stdin=ytdlp.stdout, stdout=subprocess.PIPE)
+    ytdlp = subprocess.Popen(ytdlp_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    ffmpeg = subprocess.Popen(ffmpeg_cmd, stdin=ytdlp.stdout, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
     def generate():
         try:
@@ -86,6 +86,8 @@ def stream_mp3():
                 if not chunk:
                     break
                 yield chunk
+        except Exception as e:
+            logging.error("Streaming error: %s", str(e))
         finally:
             ytdlp.kill()
             ffmpeg.kill()
