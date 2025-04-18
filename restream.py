@@ -16,7 +16,7 @@ def get_latest_video_url():
 @app.route("/stream.mp3")
 def stream_mp3():
     video_url = get_latest_video_url()
-    ytdlp_cmd = ["yt-dlp", "-f", "bestaudio", "-o", "-", video_url]
+    ytdlp_cmd = ["yt-dlp", "-f", "91", "-o", "-", video_url]
     ffmpeg_cmd = [
         "ffmpeg", "-i", "pipe:0",
         "-vn", "-acodec", "libmp3lame", "-f", "mp3", "pipe:1"
