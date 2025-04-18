@@ -1,77 +1,78 @@
 
-*YouTube Audio Streamer*
 
-A lightweight Flask application that streams audio (MP3) from the most recent uploaded video of selected YouTube channels using yt-dlp and ffmpeg.
+# YouTube Audio Streamer
 
-This project is ideal for creating low-bandwidth audio streams from YouTube content — particularly useful for older devices (like Symbian phones with CorePlayer) or embedded use-cases.
+A lightweight Flask application that streams audio (MP3) from the most recent uploaded video of selected YouTube channels using `yt-dlp` and `ffmpeg`.
 
-
----
-
-Features
-
-Streams audio from the latest uploaded video (not live streams)
-
-Audio is transcoded to MP3 (mono, 64 kbps) using ffmpeg
-
-Automatically refreshes every 30 minutes
-
-Supports multiple channels via simple route pattern (/channel_name.mp3)
-
-Optimized for use on older phones, embedded devices, or minimal players
-
-
+Perfect for low-bandwidth audio access to YouTube content — especially useful for older devices (like Symbian phones with CorePlayer) or embedded systems.
 
 ---
 
-Example
+### Features
 
-If you have a channel like:
+- Streams audio from the latest uploaded video (not live)
+- Transcodes audio to MP3 (mono, 64 kbps) using `ffmpeg`
+- Automatically refreshes every 30 minutes
+- Simple route pattern: `/channel_name.mp3`
+- Optimized for older phones and minimal media players
 
-"skicr": "https://www.youtube.com/@skicrtv/videos"
+---
 
-Then this will be accessible via:
+### Example Use
+
+If you define a channel like:
+
+```python
+CHANNELS = {
+    "skicr": "https://www.youtube.com/@skicrtv/videos"
+}
+
+You can stream it from:
 
 http://your-server/skicr.mp3
 
-The app will serve the MP3 stream from the most recently uploaded video on that channel.
+This returns the MP3 stream of the most recently uploaded video from that channel.
 
 
 ---
 
-Installation
+Setup Instructions
 
 1. Clone the repository
 
 git clone https://github.com/yourusername/youtube-audio-streamer.git
 cd youtube-audio-streamer
 
-
 2. Install dependencies
 
 pip install flask
 
-
 3. Install yt-dlp and ffmpeg
 
+Ensure both are available in your $PATH.
 
-4. Add your cookies.txt file (optional but recommended for age-restricted/private videos):
+4. (Optional) Add cookies.txt
 
-Place it at: /mnt/data/cookies.txt (or change the path in the code)
+For age-restricted/private content, place cookies.txt at:
 
+/mnt/data/cookies.txt
+
+Or change the path in your script.
 
 5. Run the app
 
 python app.py
 
+The app will be available at:
 
+http://localhost:8000
 
 
 ---
 
 Customization
 
-Add or remove channels in the CHANNELS dictionary in the script:
+Edit the CHANNELS dictionary in the script:
 
 CHANNELS = {
     "skicr": "https://www.youtube.com/@skicrtv/videos",
@@ -80,13 +81,12 @@ CHANNELS = {
     ...
 }
 
-Each channel will be accessible at /channel_name.mp3.
+Each will be accessible via /channel_name.mp3.
 
 
 ---
 
 License
 
-This project is licensed under the MIT License. You are free to use, modify, and distribute it.
-
+This project is licensed under the MIT License. Use it freely and modify as needed.
 
