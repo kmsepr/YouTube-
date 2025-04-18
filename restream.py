@@ -13,14 +13,13 @@ YOUTUBE_URL = "https://www.youtube.com/@babu_ramachandran/videos"
 VIDEO_CACHE = {"url": None, "last_checked": 0}
 
 def fetch_latest_video_url():
-    """Fetches and returns the latest video URL from the channel."""
+    """Fetch latest video URL from the channel using yt-dlp."""
     try:
         cmd = [
             "yt-dlp",
             "--flat-playlist",
             "--playlist-end", "1",
             "--dump-single-json",
-            "--cookies", "/mnt/data/cookies.txt",  # if cookies are needed
             YOUTUBE_URL
         ]
         result = subprocess.run(cmd, capture_output=True, text=True)
@@ -40,19 +39,18 @@ def fetch_latest_video_url():
         return None
 
 def update_video_cache():
-    """Background task to update cached video every 30 minutes."""
+    """Update cached video URL every 30 minutes."""
     while True:
         logging.info("Refreshing latest video URL...")
         url = fetch_latest_video_url()
         if url:
             VIDEO_CACHE["url"] = url
             VIDEO_CACHE["last_checked"] = time.time()
-            logging.info(f"✅ Cached latest video: {url}")
+            logging.info(f"✅ Cached video: {url}")
         else:
             logging.warning("❌ Failed to update video cache.")
-        time.sleep(1800)  # Refresh every 30 minutes
+        time.sleep(1800)  # 30 minutes
 
-# Start background thread
 threading.Thread(target=update_video_cache, daemon=True).start()
 
 @app.route("/stream.mp3")
@@ -63,7 +61,6 @@ def stream_mp3():
 
     ytdlp_cmd = [
         "yt-dlp",
-        "--cookies", "/mnt/data/cookies.txt",
         "--add-header", "User-Agent: Mozilla/5.0",
         "--add-header", "Accept-Language: en-US,en;q=0.5",
         "-f", "bestaudio[ext=m4a]/bestaudio",
@@ -73,7 +70,8 @@ def stream_mp3():
 
     ffmpeg_cmd = [
         "ffmpeg", "-i", "pipe:0",
-        "-vn", "-acodec", "libmp3lame", "-b:a", "40k", "-ac", "1", "-f", "mp3", "pipe:1"
+        "-vn", "-acodec", "libmp3lame",
+        "-b:a", "40k", "-ac", "1", "-f", "mp3", "pipe:1"
     ]
 
     ytdlp = subprocess.Popen(ytdlp_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -88,6 +86,8 @@ def stream_mp3():
                 yield chunk
         except Exception as e:
             logging.error("Streaming error: %s", str(e))
+            stderr_output = ffmpeg.stderr.read()
+            logging.error("FFmpeg stderr: %s", stderr_output.decode(errors='ignore'))
         finally:
             ytdlp.kill()
             ffmpeg.kill()
@@ -96,7 +96,7 @@ def stream_mp3():
 
 @app.route("/")
 def index():
-    return '<h2>Latest Video Audio Stream (MP3)</h2><a href="/stream.mp3">Click here to play</a>'
+    return '<h2>Latest YouTube Audio Stream</h2><a href="/stream.mp3">Click to listen</a>'
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
