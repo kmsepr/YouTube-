@@ -1,4 +1,4 @@
-from flask import Flask, Response, request, jsonify
+from flask import Flask, Response, jsonify
 import subprocess
 import json
 import os
@@ -7,9 +7,6 @@ import logging
 
 app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
-
-# 🔐 Optional token protection (set ACCESS_TOKEN in env to enable)
-ACCESS_TOKEN = os.getenv("ACCESS_TOKEN", None)
 
 # 🎯 Station configuration: map station keys to YouTube channel URLs
 STATIONS = {
@@ -25,13 +22,6 @@ CACHE_TTL = 1800  # 30 minutes
 CACHE = {}
 # Number of latest videos to include per station
 PLAYLIST_LENGTH = 5
-
-@app.before_request
-def require_token():
-    if ACCESS_TOKEN:
-        token = request.args.get("token")
-        if token != ACCESS_TOKEN:
-            return "Unauthorized", 403
 
 
 def fetch_latest_urls(station):
@@ -121,7 +111,7 @@ def generate_stream(station):
 
 @app.route("/stations")
 def list_stations():
-    return jsonify({ 'stations': list(STATIONS.keys()) })
+    return jsonify({'stations': list(STATIONS.keys())})
 
 
 @app.route("/<station>/stream.mp3")
@@ -136,8 +126,7 @@ def playlist_m3u(station):
     if station not in STATIONS:
         return "Station not found", 404
     host = request.host_url.rstrip('/')
-    token_qs = f"?token={ACCESS_TOKEN}" if ACCESS_TOKEN else ""
-    stream_url = f"{host}/{station}/stream.mp3{token_qs}"
+    stream_url = f"{host}/{station}/stream.mp3"
     m3u = f"#EXTM3U\n#EXTINF:-1,{station}\n{stream_url}\n"
     return Response(m3u, mimetype="audio/x-mpegurl")
 
@@ -150,11 +139,10 @@ def health():
 @app.route("/")
 def index():
     host = request.host_url.rstrip('/')
-    token_qs = f"?token={ACCESS_TOKEN}" if ACCESS_TOKEN else ""
     items = []
     for station in STATIONS:
-        stream_link = f"{host}/{station}/stream.mp3{token_qs}"
-        playlist_link = f"{host}/{station}.m3u{token_qs}"
+        stream_link = f"{host}/{station}/stream.mp3"
+        playlist_link = f"{host}/{station}.m3u"
         items.append(f'<li>{station}: <a href="{stream_link}">Stream</a> | <a href="{playlist_link}">Playlist</a></li>')
     return f"<h2>Available Stations</h2><ul>{''.join(items)}</ul>"
 
