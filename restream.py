@@ -87,10 +87,16 @@ threading.Thread(target=update_video_cache_loop, daemon=True).start()
 def generate_stream(url):
     while True:
         process = subprocess.Popen([
-            "ffmpeg", "-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "10",
-            "-user_agent", "Mozilla/5.0", "-i", url, "-vn", "-ac", "1",
-            "-b:a", "40k", "-bufsize", "1M", "-f", "mp3", "-"
-        ], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    "ffmpeg", "-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "10",
+    "-user_agent", "Mozilla/5.0",
+    "-i", url,
+    "-vn",             # no video
+    "-ac", "1",        # mono audio
+    "-b:a", "40k",     # audio bitrate
+    "-bufsize", "1M",  # buffer size
+    "-f", "mp3",       # output format
+    "-"
+], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
 
         try:
             for chunk in iter(lambda: process.stdout.read(4096), b""):
