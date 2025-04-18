@@ -18,6 +18,7 @@ def fetch_latest_video_url():
         cmd = [
             "yt-dlp", "--flat-playlist", "--playlist-end", "1",
             "--dump-single-json", "--cookies", "/mnt/data/cookies.txt",
+            "--user-agent", "Mozilla/5.0",
             YOUTUBE_URL
         ]
         result = subprocess.run(cmd, capture_output=True, text=True)
@@ -28,17 +29,22 @@ def fetch_latest_video_url():
         data = json.loads(result.stdout)
         video_id = data["entries"][0]["id"]
         return f"https://www.youtube.com/watch?v={video_id}"
-    except Exception as e:
+    except Exception:
         logging.exception("Error fetching latest video URL")
         return None
 
 def get_youtube_audio_url(youtube_url):
     """Extract direct stream URL."""
     try:
-        command = ["/usr/local/bin/yt-dlp", "--force-generic-extractor", "-f", "91", "-g", youtube_url]
+        command = [
+            "/usr/local/bin/yt-dlp",
+            "--force-generic-extractor",
+            "--user-agent", "Mozilla/5.0",
+            "-f", "91", "-g", youtube_url
+        ]
         if os.path.exists("/mnt/data/cookies.txt"):
-            command.insert(2, "--cookies")
-            command.insert(3, "/mnt/data/cookies.txt")
+            command.insert(1, "--cookies")
+            command.insert(2, "/mnt/data/cookies.txt")
 
         result = subprocess.run(command, capture_output=True, text=True)
         if result.returncode == 0:
