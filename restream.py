@@ -17,12 +17,14 @@ def get_latest_video_url():
 def stream_mp3():
     video_url = get_latest_video_url()
     ytdlp_cmd = [
-        "yt-dlp",
-        "--cookies", "/mnt/data/cookies.txt",  # ← Use cookies here
-        "-f", "91",
-        "-o", "-",
-        video_url
-    ]
+    "yt-dlp",
+    "--cookies", "/mnt/data/cookies.txt",
+    "--add-header", "User-Agent: Mozilla/5.0",
+    "--add-header", "Accept-Language: en-US,en;q=0.5",
+    "-f", "bestaudio[ext=m4a]/bestaudio",
+    "-o", "-",
+    video_url
+]
     ffmpeg_cmd = [
         "ffmpeg", "-i", "pipe:0",
         "-vn", "-acodec", "libmp3lame", "-f", "mp3", "pipe:1"
