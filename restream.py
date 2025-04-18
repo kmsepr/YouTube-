@@ -9,7 +9,7 @@ app = Flask(__name__)
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-YOUTUBE_URL = "https://www.youtube.com/@safaritvlive/videos"
+YOUTUBE_URL = "https://youtube.com/playlist?list=PLLSiSzpILVXmTXgDdM1FXNZVyTz_Nca52"
 
 def get_latest_video_url():
     cmd = f"yt-dlp --flat-playlist --playlist-end 1 --dump-json {YOUTUBE_URL}"
