@@ -13,10 +13,13 @@ CHANNELS = {
     "babu": "https://www.youtube.com/@babu_ramachandran/videos",
     "ddm": "https://www.youtube.com/@ddmalayalamtv/videos",
     "furqan": "https://www.youtube.com/@alfurqan4991/videos",
-
     "skicr": "https://www.youtube.com/@skicrtv/videos",
-
-
+    "dhruv": "https://www.youtube.com/@dhruvrathee/videos",
+    "safari": "https://www.youtube.com/@safaritvlive/videos",
+    "sunnahdebate": "https://www.youtube.com/@sunnahdebate1438/videos",
+    "sunnxt": "https://www.youtube.com/@sunnxtmalayalam/videos",
+    "movieworld": "https://www.youtube.com/@movieworldmalayalammovies/videos",
+    "comedy": "https://www.youtube.com/@malayalamcomedyscene5334/videos",
 }
 
 VIDEO_CACHE = {name: {"url": None, "stream_url": None, "last_checked": 0} for name in CHANNELS}
@@ -43,7 +46,10 @@ def fetch_latest_video_url(channel_url):
 def get_best_audio_url(video_url):
     try:
         cmd = [
-            "yt-dlp", "-f", "bestaudio", "-g", "--cookies", "/mnt/data/cookies.txt", video_url
+            "yt-dlp", "-f", "bestaudio[ext=m4a]/bestaudio/best",
+            "-g", "--cookies", "/mnt/data/cookies.txt", 
+            "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36", 
+            video_url
         ]
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode == 0:
