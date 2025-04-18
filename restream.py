@@ -13,7 +13,6 @@ YOUTUBE_URL = "https://www.youtube.com/@babu_ramachandran/videos"
 VIDEO_CACHE = {"url": None, "last_checked": 0}
 
 def fetch_latest_video_url():
-    """Fetch latest video URL from the channel using yt-dlp."""
     try:
         cmd = [
             "yt-dlp",
@@ -39,7 +38,6 @@ def fetch_latest_video_url():
         return None
 
 def update_video_cache():
-    """Update cached video URL every 30 minutes."""
     while True:
         logging.info("Refreshing latest video URL...")
         url = fetch_latest_video_url()
@@ -49,7 +47,7 @@ def update_video_cache():
             logging.info(f"✅ Cached video: {url}")
         else:
             logging.warning("❌ Failed to update video cache.")
-        time.sleep(1800)  # 30 minutes
+        time.sleep(1800)  # every 30 minutes
 
 threading.Thread(target=update_video_cache, daemon=True).start()
 
@@ -61,6 +59,9 @@ def stream_mp3():
 
     ytdlp_cmd = [
         "yt-dlp",
+        "--no-playlist",
+        "--quiet",
+        "--no-warnings",
         "--add-header", "User-Agent: Mozilla/5.0",
         "--add-header", "Accept-Language: en-US,en;q=0.5",
         "-f", "bestaudio[ext=m4a]/bestaudio",
@@ -69,30 +70,37 @@ def stream_mp3():
     ]
 
     ffmpeg_cmd = [
-        "ffmpeg", "-i", "pipe:0",
+        "ffmpeg", "-loglevel", "error", "-i", "pipe:0",
         "-vn", "-acodec", "libmp3lame",
-        "-b:a", "40k", "-ac", "1", "-f", "mp3", "pipe:1"
+        "-b:a", "40k", "-ac", "1",
+        "-f", "mp3",
+        "-fflags", "+flush_packets", "-flush_packets", "1",
+        "pipe:1"
     ]
 
-    ytdlp = subprocess.Popen(ytdlp_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    ffmpeg = subprocess.Popen(ffmpeg_cmd, stdin=ytdlp.stdout, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    try:
+        ytdlp = subprocess.Popen(ytdlp_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        ffmpeg = subprocess.Popen(ffmpeg_cmd, stdin=ytdlp.stdout, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-    def generate():
-        try:
-            while True:
-                chunk = ffmpeg.stdout.read(1024)
-                if not chunk:
-                    break
-                yield chunk
-        except Exception as e:
-            logging.error("Streaming error: %s", str(e))
-            stderr_output = ffmpeg.stderr.read()
-            logging.error("FFmpeg stderr: %s", stderr_output.decode(errors='ignore'))
-        finally:
-            ytdlp.kill()
-            ffmpeg.kill()
+        def generate():
+            try:
+                while True:
+                    chunk = ffmpeg.stdout.read(1024)
+                    if not chunk:
+                        break
+                    yield chunk
+            except Exception as e:
+                logging.error(f"Streaming error: {e}")
+                logging.error(f"FFmpeg stderr: {ffmpeg.stderr.read().decode(errors='ignore')}")
+            finally:
+                ytdlp.kill()
+                ffmpeg.kill()
 
-    return Response(generate(), mimetype="audio/mpeg")
+        return Response(generate(), mimetype="audio/mpeg", headers={"Connection": "keep-alive"})
+
+    except Exception as e:
+        logging.error(f"Stream startup error: {e}")
+        return "Internal server error", 500
 
 @app.route("/")
 def index():
