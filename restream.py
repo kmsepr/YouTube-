@@ -12,7 +12,11 @@ logging.basicConfig(level=logging.INFO)
 CHANNELS = {
     "babu": "https://www.youtube.com/@babu_ramachandran/videos",
     "ddm": "https://www.youtube.com/@ddmalayalamtv/videos",
-    "furqan": "https://www.youtube.com/@alfurqan4991/videos"
+    "furqan": "https://www.youtube.com/@alfurqan4991/videos",
+
+    "skicr": "https://www.youtube.com/@skicrtv/videos",
+
+
 }
 
 VIDEO_CACHE = {name: {"url": None, "stream_url": None, "last_checked": 0} for name in CHANNELS}
