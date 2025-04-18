@@ -1,152 +1,55 @@
-from flask import Flask, Response, jsonify
+from flask import Flask, Response
 import subprocess
 import json
 import os
-import time
-import logging
 
 app = Flask(__name__)
-logging.basicConfig(level=logging.INFO)
+YOUTUBE_URL = "https://www.youtube.com/@safaritvlive/videos"
 
-# 🎯 Station configuration: map station keys to YouTube channel URLs
-STATIONS = {
-    "safari_tv": "https://www.youtube.com/@safaritvlive/videos",
-    "babu_ramachandran": "https://www.youtube.com/@babu_ramachandran/videos"
-}
+def get_latest_video_url():
+    cmd = f"yt-dlp --flat-playlist --playlist-end 1 --dump-json {YOUTUBE_URL}"
+    result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    data = json.loads(result.stdout.strip())  # Fix: parse the JSON correctly
+    video_id = data['id']
+    return f"https://www.youtube.com/watch?v={video_id}"
 
-# 📂 Cookies file for yt-dlp
-COOKIES_FILE = "/mnt/data/cookies.txt"
-# ⏱ Cache TTL in seconds
-CACHE_TTL = 1800  # 30 minutes
-# 🗄 In-memory cache: station -> {"timestamp": float, "urls": list}
-CACHE = {}
-# Number of latest videos to include per station
-PLAYLIST_LENGTH = 5
-
-
-def fetch_latest_urls(station):
-    """Fetch latest PLAYLIST_LENGTH video URLs for the given station."""
-    channel_url = STATIONS[station]
-    cmd = [
-        "yt-dlp",
-        "--flat-playlist",
-        "--dump-json",
-        f"--playlist-end {PLAYLIST_LENGTH}",
-        channel_url
+@app.route("/stream.mp3")
+def stream_mp3():
+    video_url = get_latest_video_url()
+    ytdlp_cmd = [
+    "yt-dlp",
+    "--cookies", "/mnt/data/cookies.txt",
+    "--add-header", "User-Agent: Mozilla/5.0",
+    "--add-header", "Accept-Language: en-US,en;q=0.5",
+    "-f", "bestaudio[ext=m4a]/bestaudio",
+    "-o", "-",
+    video_url
+]
+    ffmpeg_cmd = [
+        "ffmpeg", "-i", "pipe:0",
+        "-vn", "-acodec", "libmp3lame", "-f", "mp3", "pipe:1"
     ]
-    result = subprocess.run(" ".join(cmd), shell=True, capture_output=True, text=True)
-    if result.returncode != 0:
-        logging.error(f"Failed to fetch playlist for {station}: {result.stderr}")
-        return []
 
-    urls = []
-    for line in result.stdout.splitlines():
+    ytdlp = subprocess.Popen(ytdlp_cmd, stdout=subprocess.PIPE)
+    ffmpeg = subprocess.Popen(ffmpeg_cmd, stdin=ytdlp.stdout, stdout=subprocess.PIPE)
+
+    def generate():
         try:
-            info = json.loads(line)
-            vid = info.get("id")
-            if vid:
-                urls.append(f"https://www.youtube.com/watch?v={vid}")
-        except json.JSONDecodeError:
-            continue
-    return urls
+            while True:
+                chunk = ffmpeg.stdout.read(1024)
+                if not chunk:
+                    break
+                yield chunk
+        finally:
+            ytdlp.kill()
+            ffmpeg.kill()
 
-
-def get_cached_urls(station):
-    """Return cached URLs if fresh; otherwise fetch and cache."""
-    now = time.time()
-    entry = CACHE.get(station)
-    if entry and now - entry['timestamp'] < CACHE_TTL:
-        return entry['urls']
-
-    urls = fetch_latest_urls(station)
-    if urls:
-        CACHE[station] = { 'timestamp': now, 'urls': urls }
-    return urls
-
-
-def generate_stream(station):
-    """Generate a continuous MP3 stream from a station's cached URLs."""
-    while True:
-        urls = get_cached_urls(station)
-        if not urls:
-            logging.warning(f"No URLs for {station}, retrying in 30s")
-            time.sleep(30)
-            continue
-
-        for video_url in urls:
-            logging.info(f"Streaming {video_url}")
-            ytdlp_cmd = [
-                "yt-dlp",
-                "--cookies", COOKIES_FILE,
-                "--add-header", "User-Agent: Mozilla/5.0",
-                "--add-header", "Accept-Language: en-US,en;q=0.5",
-                "-f", "bestaudio[ext=m4a]/bestaudio",
-                "-o", "-",
-                video_url
-            ]
-            ffmpeg_cmd = [
-                "ffmpeg",
-                "-re",
-                "-i", "pipe:0",
-                "-vn",
-                "-acodec", "libmp3lame",
-                "-f", "mp3",
-                "pipe:1"
-            ]
-
-            ytdlp = subprocess.Popen(ytdlp_cmd, stdout=subprocess.PIPE)
-            ffmpeg = subprocess.Popen(ffmpeg_cmd, stdin=ytdlp.stdout, stdout=subprocess.PIPE)
-
-            try:
-                for chunk in iter(lambda: ffmpeg.stdout.read(4096), b""):
-                    yield chunk
-            except GeneratorExit:
-                break
-            finally:
-                for p in (ytdlp, ffmpeg):
-                    try: p.kill()
-                    except: pass
-        logging.info(f"Completed cycle for {station}, refreshing…")
-
-
-@app.route("/stations")
-def list_stations():
-    return jsonify({'stations': list(STATIONS.keys())})
-
-
-@app.route("/<station>/stream.mp3")
-def stream_mp3(station):
-    if station not in STATIONS:
-        return "Station not found", 404
-    return Response(generate_stream(station), mimetype="audio/mpeg")
-
-
-@app.route("/<station>.m3u")
-def playlist_m3u(station):
-    if station not in STATIONS:
-        return "Station not found", 404
-    host = request.host_url.rstrip('/')
-    stream_url = f"{host}/{station}/stream.mp3"
-    m3u = f"#EXTM3U\n#EXTINF:-1,{station}\n{stream_url}\n"
-    return Response(m3u, mimetype="audio/x-mpegurl")
-
-
-@app.route("/health")
-def health():
-    return "OK", 200
-
+    return Response(generate(), mimetype="audio/mpeg")
 
 @app.route("/")
 def index():
-    host = request.host_url.rstrip('/')
-    items = []
-    for station in STATIONS:
-        stream_link = f"{host}/{station}/stream.mp3"
-        playlist_link = f"{host}/{station}.m3u"
-        items.append(f'<li>{station}: <a href="{stream_link}">Stream</a> | <a href="{playlist_link}">Playlist</a></li>')
-    return f"<h2>Available Stations</h2><ul>{''.join(items)}</ul>"
-
+    return '<h2>Safari TV MP3 Stream</h2><a href="/stream.mp3">Play Stream</a>'
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8000))
+    port = int(os.environ.get("PORT", 8000))  # Get Koyeb's port environment variable
     app.run(host="0.0.0.0", port=port)
