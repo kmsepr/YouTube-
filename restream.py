@@ -11,14 +11,11 @@ logging.basicConfig(level=logging.INFO)
 
 CHANNELS = {
     "babu": "https://www.youtube.com/@babu_ramachandran/videos",
-    "ddm": "https://www.youtube.com/@DoordarshanMalayalam/videos",
+    "ddm": "https://www.youtube.com/@ddmalayalamtv/videos",
     "furqan": "https://www.youtube.com/@alfurqan4991/videos"
 }
 
-CACHE = {
-    name: {"url": None, "stream_url": None, "last_checked": 0}
-    for name in CHANNELS
-}
+VIDEO_CACHE = {name: {"url": None, "stream_url": None, "last_checked": 0} for name in CHANNELS}
 
 def fetch_latest_video_url(channel_url):
     try:
@@ -29,8 +26,9 @@ def fetch_latest_video_url(channel_url):
         ]
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:
-            logging.error("yt-dlp error for %s: %s", channel_url, result.stderr)
+            logging.error("yt-dlp error: %s", result.stderr)
             return None
+
         data = json.loads(result.stdout)
         video_id = data["entries"][0]["id"]
         return f"https://www.youtube.com/watch?v={video_id}"
@@ -38,44 +36,40 @@ def fetch_latest_video_url(channel_url):
         logging.exception("Error fetching latest video URL")
         return None
 
-def get_youtube_audio_url(youtube_url):
+def get_best_audio_url(video_url):
     try:
-        command = [
-            "/usr/local/bin/yt-dlp", "--cookies", "/mnt/data/cookies.txt",
-            "-f", "bestaudio", "-g", youtube_url
+        cmd = [
+            "yt-dlp", "-f", "bestaudio", "-g", "--cookies", "/mnt/data/cookies.txt", video_url
         ]
-        result = subprocess.run(command, capture_output=True, text=True)
+        result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode == 0:
             return result.stdout.strip()
         else:
-            logging.error("yt-dlp audio extract error: %s", result.stderr)
+            logging.error("yt-dlp error: %s", result.stderr)
             return None
     except Exception:
-        logging.exception("Error extracting audio URL")
+        logging.exception("Error extracting best audio URL")
         return None
 
-def update_cache(name, channel_url):
+def update_video_cache_loop():
     while True:
-        logging.info(f"Refreshing for {name}...")
-        video_url = fetch_latest_video_url(channel_url)
-        if video_url:
-            stream_url = get_youtube_audio_url(video_url)
-            if stream_url:
-                CACHE[name] = {
-                    "url": video_url,
-                    "stream_url": stream_url,
-                    "last_checked": time.time()
-                }
-                logging.info(f"✅ [{name}] {video_url} -> {stream_url}")
+        for name, url in CHANNELS.items():
+            logging.info(f"Refreshing for {name}...")
+            video_url = fetch_latest_video_url(url)
+            if video_url:
+                stream_url = get_best_audio_url(video_url)
+                if stream_url:
+                    VIDEO_CACHE[name]["url"] = video_url
+                    VIDEO_CACHE[name]["stream_url"] = stream_url
+                    VIDEO_CACHE[name]["last_checked"] = time.time()
+                    logging.info(f"✅ {name}: {video_url} -> {stream_url}")
+                else:
+                    logging.warning(f"❌ Could not get stream URL for {name}")
             else:
-                logging.warning(f"❌ [{name}] Could not get stream URL")
-        else:
-            logging.warning(f"❌ [{name}] Could not fetch video URL")
+                logging.warning(f"❌ Could not fetch video URL for {name}")
         time.sleep(1800)
 
-# Launch one thread per channel
-for name, url in CHANNELS.items():
-    threading.Thread(target=update_cache, args=(name, url), daemon=True).start()
+threading.Thread(target=update_video_cache_loop, daemon=True).start()
 
 def generate_stream(url):
     while True:
@@ -98,22 +92,17 @@ def generate_stream(url):
             process.wait()
             time.sleep(5)
 
-@app.route("/<name>.mp3")
-def stream_by_name(name):
-    if name not in CACHE:
-        return f"No stream configured for '{name}'", 404
-    stream_url = CACHE[name]["stream_url"]
-    if not stream_url:
-        return f"Stream '{name}' not ready", 503
-    return Response(generate_stream(stream_url), mimetype="audio/mpeg")
+@app.route("/<channel>.mp3")
+def stream_mp3(channel):
+    data = VIDEO_CACHE.get(channel)
+    if not data or not data.get("stream_url"):
+        return f"Stream for '{channel}' not ready", 503
+    return Response(generate_stream(data["stream_url"]), mimetype="audio/mpeg")
 
 @app.route("/")
 def index():
-    html = "<h3>Live YouTube Channel Audio Streams</h3><ul>"
-    for name in CHANNELS:
-        html += f'<li><a href="/{name}.mp3">{name}.mp3</a></li>'
-    html += "</ul>"
-    return html
+    links = [f'<li><a href="/{ch}.mp3">{ch}.mp3</a></li>' for ch in CHANNELS]
+    return f"<h3>Available Streams</h3><ul>{''.join(links)}</ul>"
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
