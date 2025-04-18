@@ -11,7 +11,8 @@ logging.basicConfig(level=logging.INFO)
 
 CHANNELS = {
     "babu": "https://www.youtube.com/@babu_ramachandran/videos",
-    "ddm": "https://www.youtube.com/@ddmalayalam/videos"
+    "ddm": "https://www.youtube.com/@DoordarshanMalayalam/videos",
+    "furqan": "https://www.youtube.com/@alfurqan4991/videos"
 }
 
 CACHE = {
