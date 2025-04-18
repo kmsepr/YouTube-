@@ -18,7 +18,6 @@ def fetch_latest_video_url():
         cmd = [
             "yt-dlp", "--flat-playlist", "--playlist-end", "1",
             "--dump-single-json", "--cookies", "/mnt/data/cookies.txt",
-            "--user-agent", "Mozilla/5.0",
             YOUTUBE_URL
         ]
         result = subprocess.run(cmd, capture_output=True, text=True)
@@ -34,13 +33,13 @@ def fetch_latest_video_url():
         return None
 
 def get_youtube_audio_url(youtube_url):
-    """Extract direct stream URL."""
+    """Extract best available audio stream URL."""
     try:
         command = [
             "/usr/local/bin/yt-dlp",
             "--force-generic-extractor",
             "--user-agent", "Mozilla/5.0",
-            "-f", "91", "-g", youtube_url
+            "-f", "bestaudio", "-g", youtube_url
         ]
         if os.path.exists("/mnt/data/cookies.txt"):
             command.insert(1, "--cookies")
@@ -57,7 +56,7 @@ def get_youtube_audio_url(youtube_url):
         return None
 
 def update_video_cache():
-    """Update cached video and stream URL every 30 mins."""
+    """Update cached video and stream URL every 30 minutes."""
     while True:
         logging.info("Refreshing latest video and audio URL...")
         video_url = fetch_latest_video_url()
@@ -72,7 +71,7 @@ def update_video_cache():
                 logging.warning("❌ Could not get stream URL")
         else:
             logging.warning("❌ Could not fetch video URL")
-        time.sleep(1800)  # 30 minutes
+        time.sleep(1800)  # Refresh every 30 minutes
 
 threading.Thread(target=update_video_cache, daemon=True).start()
 
@@ -100,7 +99,6 @@ def generate_stream(url):
 
 @app.route("/stream.mp3")
 def stream_mp3():
-    """Stream MP3 if available."""
     stream_url = VIDEO_CACHE.get("stream_url")
     if not stream_url:
         return "Stream not ready yet", 503
