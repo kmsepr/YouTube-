@@ -54,7 +54,14 @@ threading.Thread(target=update_video_cache, daemon=True).start()
 @app.route("/stream.mp3")
 def stream_mp3():
     video_url = VIDEO_CACHE.get("url")
-    if not video_url:
+if not video_url:
+    # fallback to fetch latest
+    logging.info("No cached video URL. Fetching now...")
+    video_url = fetch_latest_video_url()
+    if video_url:
+        VIDEO_CACHE["url"] = video_url
+        VIDEO_CACHE["last_checked"] = time.time()
+    else:
         return "No video URL available", 503
 
     ytdlp_cmd = [
