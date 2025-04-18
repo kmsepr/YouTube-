@@ -1,30 +1,17 @@
-# Use Python slim base
-FROM python:3.10-slim
+# Use the official Python 3 image
+FROM python:3.12-slim
 
-# Environment variable to avoid interactive prompts
-ENV DEBIAN_FRONTEND=noninteractive
-
-# Install FFmpeg with AMR-NB support and other dependencies
-RUN apt-get update && apt-get install -y \
-    ffmpeg \
-    libopencore-amrnb0 \
-    libxml2-dev \
-    libssl-dev \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/*
-
-# Set the working directory
+# Set the working directory inside the container
 WORKDIR /app
 
-# Install Python dependencies
-COPY requirements.txt /app/requirements.txt
+# Copy the local code to the container
+COPY . /app
+
+# Install the dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the Flask app
-COPY stream.py /app/
+# Expose the port that Flask will run on
+EXPOSE 8000
 
-# Expose port
-EXPOSE 8080
-
-# Run the app
-CMD ["python", "stream.py"]
+# Run the Flask application
+CMD ["python", "restream.py"]
