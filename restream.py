@@ -9,27 +9,29 @@ import threading
 app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 
+# List of YouTube channels to fetch from
 CHANNELS = {
     "babu": "https://www.youtube.com/@babu_ramachandran/videos",
     "ddm": "https://www.youtube.com/@ddmalayalamtv/videos",
     "furqan": "https://www.youtube.com/@alfurqan4991/videos",
     "skicr": "https://www.youtube.com/@skicrtv/videos",
-    "dhruv": "https://www.youtube.com/@dhruvrathee/videos",
-    "safari": "https://www.youtube.com/@safaritvlive/videos",
-    "sunnahdebate": "https://www.youtube.com/@sunnahdebate1438/videos",
-    "sunnxt": "https://www.youtube.com/@sunnxtmalayalam/videos",
-    "movieworld": "https://www.youtube.com/@movieworldmalayalammovies/videos",
-    "comedy": "https://www.youtube.com/@malayalamcomedyscene5334/videos",
+    "dhruvrathee": "https://youtube.com/@dhruvrathee",
+    "safaritvlive": "https://youtube.com/@safaritvlive?si=l-aMjrXgt_7wsWT_",
+    "sunnahdebate1438": "https://youtube.com/@sunnahdebate1438?si=pK57iZt9LbYnVFxp",
+    "sunnxtmalayalam": "https://youtube.com/@sunnxtmalayalam?si=IXlzA4ImiZY4i2tl",
+    "movieworldmalayalammovies": "https://youtube.com/@movieworldmalayalammovies?si=AgajbLBunHCvbOJp",
+    "malayalamcomedyscene5334": "https://youtube.com/@malayalamcomedyscene5334?si=jN4rz7xGAx9vP1Gj",
 }
 
+# Cache to store the current video URL and stream URL
 VIDEO_CACHE = {name: {"url": None, "stream_url": None, "last_checked": 0} for name in CHANNELS}
 
+# Fetch the latest video URL from a channel
 def fetch_latest_video_url(channel_url):
     try:
         cmd = [
             "yt-dlp", "--flat-playlist", "--playlist-end", "1",
-            "--dump-single-json", "--cookies", "/mnt/data/cookies.txt",
-            channel_url
+            "--dump-single-json", "--cookies", "/mnt/data/cookies.txt", channel_url
         ]
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:
@@ -43,13 +45,11 @@ def fetch_latest_video_url(channel_url):
         logging.exception("Error fetching latest video URL")
         return None
 
+# Get the best audio URL for a video
 def get_best_audio_url(video_url):
     try:
         cmd = [
-            "yt-dlp", "-f", "bestaudio[ext=m4a]/bestaudio/best",
-            "-g", "--cookies", "/mnt/data/cookies.txt", 
-            "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36", 
-            video_url
+            "yt-dlp", "-f", "bestaudio", "-g", "--cookies", "/mnt/data/cookies.txt", video_url
         ]
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode == 0:
@@ -61,6 +61,7 @@ def get_best_audio_url(video_url):
         logging.exception("Error extracting best audio URL")
         return None
 
+# Loop to periodically update the video cache
 def update_video_cache_loop():
     while True:
         for name, url in CHANNELS.items():
@@ -77,10 +78,12 @@ def update_video_cache_loop():
                     logging.warning(f"❌ Could not get stream URL for {name}")
             else:
                 logging.warning(f"❌ Could not fetch video URL for {name}")
-        time.sleep(1800)
+        time.sleep(1800)  # Wait 30 minutes before checking again
 
+# Start the cache update thread
 threading.Thread(target=update_video_cache_loop, daemon=True).start()
 
+# Generate the stream for the given audio URL
 def generate_stream(url):
     while True:
         process = subprocess.Popen([
@@ -102,6 +105,7 @@ def generate_stream(url):
             process.wait()
             time.sleep(5)
 
+# Flask route to stream audio for a specific channel
 @app.route("/<channel>.mp3")
 def stream_mp3(channel):
     data = VIDEO_CACHE.get(channel)
@@ -109,10 +113,13 @@ def stream_mp3(channel):
         return f"Stream for '{channel}' not ready", 503
     return Response(generate_stream(data["stream_url"]), mimetype="audio/mpeg")
 
+# Home route to list available streams
 @app.route("/")
 def index():
     links = [f'<li><a href="/{ch}.mp3">{ch}.mp3</a></li>' for ch in CHANNELS]
     return f"<h3>Available Streams</h3><ul>{''.join(links)}</ul>"
 
+# Start the Flask app
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8000)
+    port = int(os.environ.get("PORT", 8000))
+    app.run(host="0.0.0.0", port=port)
