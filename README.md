@@ -1,5 +1,5 @@
 
-YouTube Audio Streamer (Latest Video, Not Live)
+*YouTube Audio Streamer*
 
 A lightweight Flask application that streams audio (MP3) from the most recent uploaded video of selected YouTube channels using yt-dlp and ffmpeg.
 
