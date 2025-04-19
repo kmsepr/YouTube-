@@ -52,7 +52,7 @@ def update_video_cache_loop():
                 VIDEO_CACHE[name]["last_checked"] = time.time()
                 # Proactively download and convert
                 download_and_convert(name, video_url)
-        time.sleep(3600)
+        time.sleep(10800)
 
 # Background pre-download of MP3s
 def auto_download_mp3s():
@@ -62,7 +62,7 @@ def auto_download_mp3s():
             if video_url:
                 mp3_path = TMP_DIR / f"{name}.mp3"
                 # Skip if file exists and is recent
-                if not mp3_path.exists() or time.time() - mp3_path.stat().st_mtime > 3600:
+                if not mp3_path.exists() or time.time() - mp3_path.stat().st_mtime > 1800:
                     logging.info(f"Pre-downloading {name}")
                     download_and_convert(name, video_url)
         time.sleep(3600)
