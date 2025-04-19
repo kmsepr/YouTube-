@@ -9,7 +9,6 @@ import threading
 app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 
-# List of YouTube channels to fetch from
 CHANNELS = {
     "vallathorukatha": "https://www.youtube.com/@babu_ramachandran/videos",
     "furqan": "https://youtube.com/@alfurqan4991/videos",
@@ -24,10 +23,9 @@ CHANNELS = {
     "vijayakumarblathur": "https://youtube.com/@vijayakumarblathur/videos",
 }
 
-# Cache to store the current video URL and stream URL
 VIDEO_CACHE = {name: {"url": None, "stream_url": None, "last_checked": 0} for name in CHANNELS}
+MP3_EXPIRY_SECONDS = 2 * 60 * 60  # 2 hours
 
-# Fetch the latest video URL from a channel
 def fetch_latest_video_url(channel_url):
     try:
         cmd = [
@@ -38,7 +36,6 @@ def fetch_latest_video_url(channel_url):
         if result.returncode != 0:
             logging.error("yt-dlp error: %s", result.stderr)
             return None
-
         data = json.loads(result.stdout)
         video_id = data["entries"][0]["id"]
         return f"https://www.youtube.com/watch?v={video_id}"
@@ -46,7 +43,6 @@ def fetch_latest_video_url(channel_url):
         logging.exception("Error fetching latest video URL")
         return None
 
-# Get the best audio URL for a video
 def get_best_audio_url(video_url):
     try:
         cmd = [
@@ -62,7 +58,6 @@ def get_best_audio_url(video_url):
         logging.exception("Error extracting best audio URL")
         return None
 
-# Loop to periodically update the video cache
 def update_video_cache_loop():
     while True:
         for name, url in CHANNELS.items():
@@ -71,67 +66,76 @@ def update_video_cache_loop():
             if video_url:
                 stream_url = get_best_audio_url(video_url)
                 if stream_url:
-                    VIDEO_CACHE[name]["url"] = video_url
-                    VIDEO_CACHE[name]["stream_url"] = stream_url
-                    VIDEO_CACHE[name]["last_checked"] = time.time()
+                    VIDEO_CACHE[name].update({
+                        "url": video_url,
+                        "stream_url": stream_url,
+                        "last_checked": time.time()
+                    })
                     logging.info(f"✅ {name}: {video_url} -> {stream_url}")
                 else:
                     logging.warning(f"❌ Could not get stream URL for {name}")
             else:
                 logging.warning(f"❌ Could not fetch video URL for {name}")
-        time.sleep(1800)  # Wait 30 minutes before checking again
+        time.sleep(1800)  # 30 min
 
-# Start the cache update thread
 threading.Thread(target=update_video_cache_loop, daemon=True).start()
 
-# Generate the stream for the given file path
 def generate_stream(file_path):
     try:
         with open(file_path, 'rb') as f:
-            chunk = f.read(4096)  # Adjust chunk size if necessary
+            chunk = f.read(4096)
             while chunk:
                 yield chunk
-                chunk = f.read(4096)  # Read next chunk
-                time.sleep(0.02)  # Prevent buffer overrun
+                chunk = f.read(4096)
+                time.sleep(0.02)
     except Exception as e:
         logging.error(f"Error streaming file: {e}")
 
-# Flask route to stream audio for a specific channel
+def delete_old_file_later(file_path):
+    def delayed_delete():
+        time.sleep(MP3_EXPIRY_SECONDS)
+        if os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+                logging.info(f"Deleted old file: {file_path}")
+            except Exception as e:
+                logging.error(f"Failed to delete {file_path}: {e}")
+    threading.Thread(target=delayed_delete, daemon=True).start()
+
 @app.route("/<channel>.mp3")
 def stream_mp3(channel):
     data = VIDEO_CACHE.get(channel)
-    if not data or not data.get("stream_url"):
+    if not data or not data.get("url"):
         return f"Stream for '{channel}' not ready", 503
 
-    # Create temporary MP3 file for streaming
     temp_file = f"/tmp/{channel}.mp3"
-    
-    # Convert the video to MP3 and store in the temp file
+
+    if os.path.exists(temp_file):
+        file_age = time.time() - os.path.getmtime(temp_file)
+        if file_age < MP3_EXPIRY_SECONDS:
+            logging.info(f"Reusing cached MP3 for {channel}")
+            return Response(generate_stream(temp_file), mimetype="audio/mpeg")
+        else:
+            logging.info(f"Old file expired for {channel}, redownloading")
+            os.remove(temp_file)
+
     try:
         cmd = [
-            "yt-dlp", "-f", "bestaudio", "-o", temp_file,
+            "yt-dlp", "-f", "bestaudio", "--extract-audio",
+            "--audio-format", "mp3", "-o", temp_file,
             "--cookies", "/mnt/data/cookies.txt", data["url"]
         ]
         subprocess.run(cmd, check=True)
-
-        # Stream the MP3 file
+        delete_old_file_later(temp_file)
         return Response(generate_stream(temp_file), mimetype="audio/mpeg")
-
     except Exception as e:
         logging.error(f"Error generating or streaming MP3 for {channel}: {e}")
         return f"Error generating stream for {channel}", 500
 
-    finally:
-        # Cleanup the temporary file after streaming
-        if os.path.exists(temp_file):
-            os.remove(temp_file)
-
-# Home route to list available streams
 @app.route("/")
 def index():
     links = [f'<li><a href="/{ch}.mp3">{ch}.mp3</a></li>' for ch in CHANNELS]
     return f"<h3>Available Streams</h3><ul>{''.join(links)}</ul>"
 
-# Start the Flask app
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000)
