@@ -5,6 +5,7 @@ import os
 import logging
 import time
 import threading
+import tempfile
 
 app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -12,7 +13,6 @@ logging.basicConfig(level=logging.INFO)
 # List of YouTube channels to fetch from
 CHANNELS = {
     "vallathorukatha": "https://www.youtube.com/@babu_ramachandran/videos",
-    
     "furqan": "https://youtube.com/@alfurqan4991/videos",
     "skicr": "https://youtube.com/@skicrtv/videos",
     "dhruvrathee": "https://youtube.com/@dhruvrathee/videos",
@@ -24,9 +24,6 @@ CHANNELS = {
     "studyiq": "https://youtube.com/@studyiqiasenglish/videos",
     "vijayakumarblathur": "https://youtube.com/@vijayakumarblathur/videos",
 }
-
-# Cache to store the current video URL and stream URL
-VIDEO_CACHE = {name: {"url": None, "stream_url": None, "last_checked": 0} for name in CHANNELS}
 
 # Fetch the latest video URL from a channel
 def fetch_latest_video_url(channel_url):
@@ -47,88 +44,63 @@ def fetch_latest_video_url(channel_url):
         logging.exception("Error fetching latest video URL")
         return None
 
-# Get the best audio URL for a video
-def get_best_audio_url(video_url):
+# Convert the video URL to MP3 and save it temporarily
+def convert_to_mp3(video_url):
     try:
+        # Create a temporary file for the MP3
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.mp3')
+        temp_file.close()  # Close the file so that ffmpeg can write to it
+
         cmd = [
-            "yt-dlp", "-f", "bestaudio", "-g", "--cookies", "/mnt/data/cookies.txt", video_url
+            "yt-dlp", "-f", "bestaudio", "-o", temp_file.name,
+            "--cookies", "/mnt/data/cookies.txt", video_url
         ]
         result = subprocess.run(cmd, capture_output=True, text=True)
-        if result.returncode == 0:
-            return result.stdout.strip()
-        else:
+        if result.returncode != 0:
             logging.error("yt-dlp error: %s", result.stderr)
-            return None
+            return None, temp_file.name
+        logging.info(f"✅ Audio converted to {temp_file.name}")
+        return temp_file.name, temp_file.name
     except Exception:
-        logging.exception("Error extracting best audio URL")
-        return None
+        logging.exception("Error converting video to MP3")
+        return None, None
 
-# Loop to periodically update the video cache
-def update_video_cache_loop():
-    while True:
-        for name, url in CHANNELS.items():
-            logging.info(f"Refreshing for {name}...")
-            video_url = fetch_latest_video_url(url)
-            if video_url:
-                stream_url = get_best_audio_url(video_url)
-                if stream_url:
-                    VIDEO_CACHE[name]["url"] = video_url
-                    VIDEO_CACHE[name]["stream_url"] = stream_url
-                    VIDEO_CACHE[name]["last_checked"] = time.time()
-                    logging.info(f"✅ {name}: {video_url} -> {stream_url}")
-                else:
-                    logging.warning(f"❌ Could not get stream URL for {name}")
-            else:
-                logging.warning(f"❌ Could not fetch video URL for {name}")
-        time.sleep(1800)  # Wait 30 minutes before checking again
-
-# Start the cache update thread
-threading.Thread(target=update_video_cache_loop, daemon=True).start()
-
-# Generate the stream for the given audio URL
-def generate_stream(url):
-    process = subprocess.Popen([
-        "ffmpeg", "-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "10",
-        "-user_agent", "Mozilla/5.0",
-        "-i", url,
-        "-vn",             # no video
-        "-ac", "1",        # mono audio
-        "-b:a", "40k",     # audio bitrate
-        "-bufsize", "1M",  # buffer size
-        "-f", "mp3",       # output format
-        "-"
-    ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=4096)
-
-    logging.info(f"🎧 Streaming started: {url}")
-
-    # Background thread to read and log FFmpeg's stderr
-    def log_ffmpeg_stderr(stderr):
-        for line in iter(stderr.readline, b''):
-            logging.warning("FFmpeg: " + line.decode(errors='ignore').strip())
-
-    threading.Thread(target=log_ffmpeg_stderr, args=(process.stderr,), daemon=True).start()
-
-    try:
-        for chunk in iter(lambda: process.stdout.read(4096), b""):
-            yield chunk
-            time.sleep(0.02)  # prevent buffer overrun
-    except GeneratorExit:
-        logging.info("🔌 Client disconnected.")
-        process.terminate()
-    except Exception as e:
-        logging.error(f"⚠️ Streaming error: {e}")
-        process.terminate()
-    finally:
-        process.wait()
-        logging.info("⛔ FFmpeg process ended.")
-
-# Flask route to stream audio for a specific channel
+# Flask route to stream audio from a specific channel
 @app.route("/<channel>.mp3")
 def stream_mp3(channel):
-    data = VIDEO_CACHE.get(channel)
-    if not data or not data.get("stream_url"):
-        return f"Stream for '{channel}' not ready", 503
-    return Response(generate_stream(data["stream_url"]), mimetype="audio/mpeg")
+    logging.info(f"Streaming started for {channel}")
+
+    channel_url = CHANNELS.get(channel)
+    if not channel_url:
+        return f"Channel '{channel}' not found", 404
+
+    # Step 1: Fetch the latest video URL
+    video_url = fetch_latest_video_url(channel_url)
+    if not video_url:
+        return "Could not fetch latest video URL", 503
+
+    # Step 2: Convert the video to MP3 and save it temporarily
+    mp3_file, temp_file_path = convert_to_mp3(video_url)
+    if not mp3_file:
+        return "Error converting video to MP3", 500
+
+    # Step 3: Stream the MP3 from the temporary file
+    def generate_stream(file_path):
+        with open(file_path, "rb") as f:
+            while chunk := f.read(4096):
+                yield chunk
+                time.sleep(0.02)  # prevent buffer overrun
+
+    # Step 4: After streaming is done, delete the temporary file
+    def delete_temp_file():
+        os.remove(temp_file_path)
+        logging.info(f"Temporary file {temp_file_path} deleted")
+
+    # Start streaming and schedule deletion after playback
+    response = Response(generate_stream(mp3_file), mimetype="audio/mpeg")
+    response.call_on_close(delete_temp_file)
+
+    return response
 
 # Home route to list available streams
 @app.route("/")
