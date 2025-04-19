@@ -34,13 +34,13 @@ def cleanup_old_files():
     while True:
         now = time.time()
         for f in TMP_DIR.glob("*.mp3"):
-            if now - f.stat().st_mtime > 3600:
+            if now - f.stat().st_mtime > 10800:
                 try:
                     f.unlink()
                     logging.info(f"Deleted old file: {f}")
                 except Exception as e:
                     logging.warning(f"Could not delete {f}: {e}")
-        time.sleep(1800)
+        time.sleep(10800)
 
 # Periodic refresh of latest video URLs
 def update_video_cache_loop():
@@ -52,7 +52,7 @@ def update_video_cache_loop():
                 VIDEO_CACHE[name]["last_checked"] = time.time()
                 # Proactively download and convert
                 download_and_convert(name, video_url)
-        time.sleep(3600)
+        time.sleep(10800)
 
 # Background pre-download of MP3s
 def auto_download_mp3s():
