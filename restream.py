@@ -97,9 +97,16 @@ def generate_stream(url):
         "-bufsize", "1M",  # buffer size
         "-f", "mp3",       # output format
         "-"
-    ], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=4096)
+    ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=4096)
 
     logging.info(f"🎧 Streaming started: {url}")
+
+    # Background thread to read and log FFmpeg's stderr
+    def log_ffmpeg_stderr(stderr):
+        for line in iter(stderr.readline, b''):
+            logging.warning("FFmpeg: " + line.decode(errors='ignore').strip())
+
+    threading.Thread(target=log_ffmpeg_stderr, args=(process.stderr,), daemon=True).start()
 
     try:
         for chunk in iter(lambda: process.stdout.read(4096), b""):
