@@ -71,7 +71,7 @@ def download_and_convert(channel, video_url):
 
     try:
         audio_url = subprocess.run([
-            "yt-dlp", "-f", "602", "-g", "--cookies", "/mnt/data/cookies.txt", video_url
+            "yt-dlp", "-f", "bestaudio", "-g", "--cookies", "/mnt/data/cookies.txt", video_url
         ], capture_output=True, text=True, check=True).stdout.strip()
 
         cmd = [
