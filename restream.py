@@ -11,16 +11,18 @@ logging.basicConfig(level=logging.INFO)
 
 # List of YouTube channels to fetch from
 CHANNELS = {
-    "babu": "https://www.youtube.com/@babu_ramachandran/videos",
+    "vallathorukatha": "https://www.youtube.com/@babu_ramachandran/videos",
     "ddm": "https://www.youtube.com/@ddmalayalamtv/videos",
-    "furqan": "https://www.youtube.com/@alfurqan4991/videos",
-    "skicr": "https://www.youtube.com/@skicrtv/videos",
-    "dhruvrathee": "https://youtube.com/@dhruvrathee",
-    "safaritvlive": "https://youtube.com/@safaritvlive?si=l-aMjrXgt_7wsWT_",
-    "sunnahdebate1438": "https://youtube.com/@sunnahdebate1438?si=pK57iZt9LbYnVFxp",
-    "sunnxtmalayalam": "https://youtube.com/@sunnxtmalayalam?si=IXlzA4ImiZY4i2tl",
-    "movieworldmalayalammovies": "https://youtube.com/@movieworldmalayalammovies?si=AgajbLBunHCvbOJp",
-    "malayalamcomedyscene5334": "https://youtube.com/@malayalamcomedyscene5334?si=jN4rz7xGAx9vP1Gj",
+    "furqan": "https://youtube.com/@alfurqan4991/videos",
+    "skicr": "https://youtube.com/@skicrtv/videos",
+    "dhruvrathee": "https://youtube.com/@dhruvrathee/videos",
+    "safari": "https://youtube.com/@safaritvlive/videos",
+    "sunnahdebate": "https://youtube.com/@sunnahdebate1438/videos",
+    "sunnxt": "https://youtube.com/@sunnxtmalayalam/videos",
+    "movieworld": "https://youtube.com/@movieworldmalayalammovies/videos",
+    "comedy": "https://youtube.com/@malayalamcomedyscene5334/videos",
+    "studyiq": "https://youtube.com/@studyiqiasenglish/videos",
+    "vijayakumarblathur": "https://youtube.com/@vijayakumarblathur/videos",
 }
 
 # Cache to store the current video URL and stream URL
