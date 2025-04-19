@@ -13,8 +13,8 @@ logging.basicConfig(level=logging.INFO)
 CHANNELS = {
     "babu": "https://www.youtube.com/@babu_ramachandran/videos",
     "ddm": "https://www.youtube.com/@ddmalayalamtv/videos",
-    "furqan": "https://www.youtube.com/@alfurqan4991/videos",
-    "skicr": "https://www.youtube.com/@skicrtv/videos",
+    "furqan": "https://youtube.com/@alfurqan4991/videos",
+    "skicr": "https://youtube.com/@skicrtv/videos",
     "dhruvrathee": "https://youtube.com/@dhruvrathee/videos",
     "safari": "https://youtube.com/@safaritvlive/videos",
     "sunnahdebate": "https://youtube.com/@sunnahdebate1438/videos",
@@ -87,22 +87,35 @@ threading.Thread(target=update_video_cache_loop, daemon=True).start()
 # Generate the stream for the given audio URL
 def generate_stream(url):
     while True:
+        start_time = time.time()
         process = subprocess.Popen([
-    "ffmpeg", "-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "10",
-    "-user_agent", "Mozilla/5.0",
-    "-i", url,
-    "-vn",             # no video
-    "-ac", "1",        # mono audio
-    "-b:a", "40k",     # audio bitrate
-    "-bufsize", "1M",  # buffer size
-    "-f", "mp3",       # output format
-    "-"
-], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+            "ffmpeg", "-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "30",
+            "-user_agent", "Mozilla/5.0",
+            "-i", url,
+            "-vn",
+            "-ac", "1",
+            "-b:a", "40k",
+            "-bufsize", "5M",          # Increased buffer size for long duration
+            "-probesize", "5000000",   # Increased probe size to handle large streams
+            "-analyzeduration", "10000000",  # Increased analyze duration
+            "-f", "mp3",
+            "-"
+        ], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+
+        last_data_time = time.time()
 
         try:
             for chunk in iter(lambda: process.stdout.read(4096), b""):
                 yield chunk
+                last_data_time = time.time()  # Reset the timer whenever data is received
                 time.sleep(0.02)
+
+                # Restart stream if no data received for more than 10 minutes
+                if time.time() - last_data_time > 600:  # 600 seconds = 10 minutes
+                    logging.info("No data received for 10 minutes, restarting stream...")
+                    process.terminate()
+                    process.wait()
+                    break
         except GeneratorExit:
             process.terminate()
             process.wait()
