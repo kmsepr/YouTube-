@@ -54,6 +54,19 @@ def update_video_cache_loop():
                 download_and_convert(name, video_url)
         time.sleep(3600)
 
+# Background pre-download of MP3s
+def auto_download_mp3s():
+    while True:
+        for name, data in VIDEO_CACHE.items():
+            video_url = data.get("url")
+            if video_url:
+                mp3_path = TMP_DIR / f"{name}.mp3"
+                # Skip if file exists and is recent
+                if not mp3_path.exists() or time.time() - mp3_path.stat().st_mtime > 3600:
+                    logging.info(f"Pre-downloading {name}")
+                    download_and_convert(name, video_url)
+        time.sleep(3600)
+
 def fetch_latest_video_url(channel_url):
     try:
         result = subprocess.run([
