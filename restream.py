@@ -10,7 +10,6 @@ app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 
 # List of YouTube channels to fetch from
-
 CHANNELS = {
     "vallathorukatha": "https://www.youtube.com/@babu_ramachandran/videos",
     "ddm": "https://www.youtube.com/@ddmalayalamtv/videos",
@@ -26,8 +25,8 @@ CHANNELS = {
     "vijayakumarblathur": "https://youtube.com/@vijayakumarblathur/videos",
 }
 
-# Cache to store the current video URL and stream URL
-VIDEO_CACHE = {name: {"url": None, "stream_url": None, "last_checked": 0} for name in CHANNELS}
+# Cache to store the current video URL
+VIDEO_CACHE = {name: {"url": None, "last_checked": 0} for name in CHANNELS}
 
 # Fetch the latest video URL from a channel
 def fetch_latest_video_url(channel_url):
@@ -48,21 +47,45 @@ def fetch_latest_video_url(channel_url):
         logging.exception("Error fetching latest video URL")
         return None
 
-# Get the best audio URL for a video
-def get_best_audio_url(video_url):
+# Launch yt-dlp to download and stream the audio directly
+def get_audio_process(video_url):
     try:
         cmd = [
-            "yt-dlp", "-f", "bestaudio", "-g", "--cookies", "/mnt/data/cookies.txt", video_url
+            "yt-dlp",
+            "-f", "bestaudio",
+            "--extract-audio",
+            "--audio-format", "mp3",
+            "-o", "-",
+            "--cookies", "/mnt/data/cookies.txt",
+            video_url
         ]
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        if result.returncode == 0:
-            return result.stdout.strip()
-        else:
-            logging.error("yt-dlp error: %s", result.stderr)
-            return None
+        return subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
     except Exception:
-        logging.exception("Error extracting best audio URL")
+        logging.exception("Error starting yt-dlp audio process")
         return None
+
+# Stream generator using the full audio process
+def generate_stream(video_url):
+    while True:
+        process = get_audio_process(video_url)
+        if not process:
+            time.sleep(5)
+            continue
+
+        try:
+            for chunk in iter(lambda: process.stdout.read(4096), b""):
+                yield chunk
+                time.sleep(0.02)
+        except GeneratorExit:
+            process.terminate()
+            break
+        except Exception:
+            process.terminate()
+            time.sleep(5)
+            continue
+        finally:
+            process.terminate()
+            process.wait()
 
 # Loop to periodically update the video cache
 def update_video_cache_loop():
@@ -71,69 +94,23 @@ def update_video_cache_loop():
             logging.info(f"Refreshing for {name}...")
             video_url = fetch_latest_video_url(url)
             if video_url:
-                stream_url = get_best_audio_url(video_url)
-                if stream_url:
-                    VIDEO_CACHE[name]["url"] = video_url
-                    VIDEO_CACHE[name]["stream_url"] = stream_url
-                    VIDEO_CACHE[name]["last_checked"] = time.time()
-                    logging.info(f"✅ {name}: {video_url} -> {stream_url}")
-                else:
-                    logging.warning(f"❌ Could not get stream URL for {name}")
+                VIDEO_CACHE[name]["url"] = video_url
+                VIDEO_CACHE[name]["last_checked"] = time.time()
+                logging.info(f"✅ {name}: {video_url}")
             else:
                 logging.warning(f"❌ Could not fetch video URL for {name}")
-        time.sleep(1800)  # Wait 30 minutes before checking again
+        time.sleep(1800)  # Refresh every 30 minutes
 
 # Start the cache update thread
 threading.Thread(target=update_video_cache_loop, daemon=True).start()
 
-# Generate the stream for the given audio URL
-def generate_stream(url):
-    while True:
-        start_time = time.time()
-        process = subprocess.Popen([
-            "ffmpeg", "-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "30",
-            "-user_agent", "Mozilla/5.0",
-            "-i", url,
-            "-vn",
-            "-ac", "1",
-            "-b:a", "40k",
-            "-bufsize", "5M",          # Increased buffer size for long duration
-            "-probesize", "5000000",   # Increased probe size to handle large streams
-            "-analyzeduration", "10000000",  # Increased analyze duration
-            "-f", "mp3",
-            "-"
-        ], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
-
-        last_data_time = time.time()
-
-        try:
-            for chunk in iter(lambda: process.stdout.read(4096), b""):
-                yield chunk
-                last_data_time = time.time()  # Reset the timer whenever data is received
-                time.sleep(0.02)
-
-                # Restart stream if no data received for more than 10 minutes
-                if time.time() - last_data_time > 600:  # 600 seconds = 10 minutes
-                    logging.info("No data received for 10 minutes, restarting stream...")
-                    process.terminate()
-                    process.wait()
-                    break
-        except GeneratorExit:
-            process.terminate()
-            process.wait()
-            break
-        except Exception:
-            process.terminate()
-            process.wait()
-            time.sleep(5)
-
-# Flask route to stream audio for a specific channel
+# Route to stream audio for a specific channel
 @app.route("/<channel>.mp3")
 def stream_mp3(channel):
     data = VIDEO_CACHE.get(channel)
-    if not data or not data.get("stream_url"):
+    if not data or not data.get("url"):
         return f"Stream for '{channel}' not ready", 503
-    return Response(generate_stream(data["stream_url"]), mimetype="audio/mpeg")
+    return Response(generate_stream(data["url"]), mimetype="audio/mpeg")
 
 # Home route to list available streams
 @app.route("/")
