@@ -12,7 +12,7 @@ logging.basicConfig(level=logging.INFO)
 # List of YouTube channels to fetch from
 CHANNELS = {
     "vallathorukatha": "https://www.youtube.com/@babu_ramachandran/videos",
-    "ddm": "https://www.youtube.com/@ddmalayalamtv/videos",
+    
     "furqan": "https://youtube.com/@alfurqan4991/videos",
     "skicr": "https://youtube.com/@skicrtv/videos",
     "dhruvrathee": "https://youtube.com/@dhruvrathee/videos",
