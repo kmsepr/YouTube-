@@ -1,4 +1,4 @@
-from flask import Flask, Response, send_file
+from flask import Flask, Response, send_file, request
 import subprocess
 import json
 import os
@@ -116,7 +116,29 @@ def stream_mp3(channel):
     if not mp3_path or not mp3_path.exists():
         return "Error preparing stream", 500
 
-    return send_file(mp3_path, mimetype="audio/mpeg")
+    file_size = os.path.getsize(mp3_path)
+    range_header = request.headers.get('Range', None)
+
+    # If Range header exists, handle it for partial content streaming
+    if range_header:
+        byte1, byte2 = range_header.strip().split('=')[1].split('-')
+        byte1 = int(byte1)
+        byte2 = int(byte2) if byte2 else file_size - 1
+
+        with open(mp3_path, 'rb') as f:
+            f.seek(byte1)
+            chunk = f.read(byte2 - byte1 + 1)
+
+        return Response(
+            chunk,
+            status=206,  # Partial Content
+            content_type='audio/mpeg',
+            content_range=f"bytes {byte1}-{byte2}/{file_size}",
+            content_length=len(chunk)
+        )
+    else:
+        with open(mp3_path, 'rb') as f:
+            return Response(f.read(), content_type='audio/mpeg')
 
 @app.route("/")
 def index():
