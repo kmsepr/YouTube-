@@ -49,7 +49,7 @@ def fetch_latest_video_url(channel_url):
 def get_best_audio_url(video_url):
     try:
         cmd = [
-            "yt-dlp", "-f", "602", "-g", "--cookies", "/mnt/data/cookies.txt", video_url
+            "yt-dlp", "-f", "bestaudio", "-g", "--cookies", "/mnt/data/cookies.txt", video_url
         ]
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode == 0:
