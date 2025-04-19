@@ -11,22 +11,20 @@ logging.basicConfig(level=logging.INFO)
 
 # List of YouTube channels to fetch from
 CHANNELS = {
-    "vallathorukatha": "https://www.youtube.com/@babu_ramachandran/videos",
+    "babu": "https://www.youtube.com/@babu_ramachandran/videos",
     "ddm": "https://www.youtube.com/@ddmalayalamtv/videos",
-    "furqan": "https://youtube.com/@alfurqan4991/videos",
-    "skicr": "https://youtube.com/@skicrtv/videos",
-    "dhruvrathee": "https://youtube.com/@dhruvrathee/videos",
-    "safari": "https://youtube.com/@safaritvlive/videos",
-    "sunnahdebate": "https://youtube.com/@sunnahdebate1438/videos",
-    "sunnxt": "https://youtube.com/@sunnxtmalayalam/videos",
-    "movieworld": "https://youtube.com/@movieworldmalayalammovies/videos",
-    "comedy": "https://youtube.com/@malayalamcomedyscene5334/videos",
-    "studyiq": "https://youtube.com/@studyiqiasenglish/videos",
-    "vijayakumarblathur": "https://youtube.com/@vijayakumarblathur/videos",
+    "furqan": "https://www.youtube.com/@alfurqan4991/videos",
+    "skicr": "https://www.youtube.com/@skicrtv/videos",
+    "dhruvrathee": "https://youtube.com/@dhruvrathee",
+    "safaritvlive": "https://youtube.com/@safaritvlive?si=l-aMjrXgt_7wsWT_",
+    "sunnahdebate1438": "https://youtube.com/@sunnahdebate1438?si=pK57iZt9LbYnVFxp",
+    "sunnxtmalayalam": "https://youtube.com/@sunnxtmalayalam?si=IXlzA4ImiZY4i2tl",
+    "movieworldmalayalammovies": "https://youtube.com/@movieworldmalayalammovies?si=AgajbLBunHCvbOJp",
+    "malayalamcomedyscene5334": "https://youtube.com/@malayalamcomedyscene5334?si=jN4rz7xGAx9vP1Gj",
 }
 
-# Cache to store the current video URL
-VIDEO_CACHE = {name: {"url": None, "last_checked": 0} for name in CHANNELS}
+# Cache to store the current video URL and stream URL
+VIDEO_CACHE = {name: {"url": None, "stream_url": None, "last_checked": 0} for name in CHANNELS}
 
 # Fetch the latest video URL from a channel
 def fetch_latest_video_url(channel_url):
@@ -47,45 +45,21 @@ def fetch_latest_video_url(channel_url):
         logging.exception("Error fetching latest video URL")
         return None
 
-# Launch yt-dlp to download and stream the audio directly
-def get_audio_process(video_url):
+# Get the best audio URL for a video
+def get_best_audio_url(video_url):
     try:
         cmd = [
-            "yt-dlp",
-            "-f", "bestaudio",
-            "--extract-audio",
-            "--audio-format", "mp3",
-            "-o", "-",
-            "--cookies", "/mnt/data/cookies.txt",
-            video_url
+            "yt-dlp", "-f", "602", "-g", "--cookies", "/mnt/data/cookies.txt", video_url
         ]
-        return subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode == 0:
+            return result.stdout.strip()
+        else:
+            logging.error("yt-dlp error: %s", result.stderr)
+            return None
     except Exception:
-        logging.exception("Error starting yt-dlp audio process")
+        logging.exception("Error extracting best audio URL")
         return None
-
-# Stream generator using the full audio process
-def generate_stream(video_url):
-    while True:
-        process = get_audio_process(video_url)
-        if not process:
-            time.sleep(5)
-            continue
-
-        try:
-            for chunk in iter(lambda: process.stdout.read(4096), b""):
-                yield chunk
-                time.sleep(0.02)
-        except GeneratorExit:
-            process.terminate()
-            break
-        except Exception:
-            process.terminate()
-            time.sleep(5)
-            continue
-        finally:
-            process.terminate()
-            process.wait()
 
 # Loop to periodically update the video cache
 def update_video_cache_loop():
@@ -94,23 +68,56 @@ def update_video_cache_loop():
             logging.info(f"Refreshing for {name}...")
             video_url = fetch_latest_video_url(url)
             if video_url:
-                VIDEO_CACHE[name]["url"] = video_url
-                VIDEO_CACHE[name]["last_checked"] = time.time()
-                logging.info(f"✅ {name}: {video_url}")
+                stream_url = get_best_audio_url(video_url)
+                if stream_url:
+                    VIDEO_CACHE[name]["url"] = video_url
+                    VIDEO_CACHE[name]["stream_url"] = stream_url
+                    VIDEO_CACHE[name]["last_checked"] = time.time()
+                    logging.info(f"✅ {name}: {video_url} -> {stream_url}")
+                else:
+                    logging.warning(f"❌ Could not get stream URL for {name}")
             else:
                 logging.warning(f"❌ Could not fetch video URL for {name}")
-        time.sleep(1800)  # Refresh every 30 minutes
+        time.sleep(1800)  # Wait 30 minutes before checking again
 
 # Start the cache update thread
 threading.Thread(target=update_video_cache_loop, daemon=True).start()
 
-# Route to stream audio for a specific channel
+# Generate the stream for the given audio URL
+def generate_stream(url):
+    while True:
+        process = subprocess.Popen([
+    "ffmpeg", "-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "10",
+    "-user_agent", "Mozilla/5.0",
+    "-i", url,
+    "-vn",             # no video
+    "-ac", "1",        # mono audio
+    "-b:a", "40k",     # audio bitrate
+    "-bufsize", "1M",  # buffer size
+    "-f", "mp3",       # output format
+    "-"
+], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+
+        try:
+            for chunk in iter(lambda: process.stdout.read(4096), b""):
+                yield chunk
+                time.sleep(0.02)
+        except GeneratorExit:
+            process.terminate()
+            process.wait()
+            break
+        except Exception:
+            process.terminate()
+            process.wait()
+            time.sleep(5)
+
+# Flask route to stream audio for a specific channel
 @app.route("/<channel>.mp3")
 def stream_mp3(channel):
     data = VIDEO_CACHE.get(channel)
-    if not data or not data.get("url"):
+    if not data or not data.get("stream_url"):
         return f"Stream for '{channel}' not ready", 503
-    return Response(generate_stream(data["url"]), mimetype="audio/mpeg")
+    return Response(generate_stream(data["stream_url"]), mimetype="audio/mpeg")
 
 # Home route to list available streams
 @app.route("/")
