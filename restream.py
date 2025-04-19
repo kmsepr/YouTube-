@@ -15,12 +15,12 @@ CHANNELS = {
     "ddm": "https://www.youtube.com/@ddmalayalamtv/videos",
     "furqan": "https://www.youtube.com/@alfurqan4991/videos",
     "skicr": "https://www.youtube.com/@skicrtv/videos",
-    "dhruvrathee": "https://youtube.com/@dhruvrathee",
-    "safaritvlive": "https://youtube.com/@safaritvlive",
-    "sunnahdebate1438": "https://youtube.com/@sunnahdebate1438",
-    "sunnxtmalayalam": "https://youtube.com/@sunnxtmalayalam",
-    "movieworldmalayalammovies": "https://youtube.com/@movieworldmalayalammovies",
-    "malayalamcomedyscene5334": "https://youtube.com/@malayalamcomedyscene5334",
+    "dhruvrathee": "https://youtube.com/@dhruvrathee/videos",
+    "safari": "https://youtube.com/@safaritvlive/videos",
+    "sunnahdebate": "https://youtube.com/@sunnahdebate1438/videos",
+    "sunnxt": "https://youtube.com/@sunnxtmalayalam/videos",
+    "movieworld": "https://youtube.com/@movieworldmalayalammovies/videos",
+    "comedy": "https://youtube.com/@malayalamcomedyscene5334/videos",
 }
 
 # Cache to store the current video URL and stream URL
