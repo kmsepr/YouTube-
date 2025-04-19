@@ -33,7 +33,7 @@ def cleanup_old_files():
     while True:
         now = time.time()
         for f in TMP_DIR.glob("*.mp3"):
-            if now - f.stat().st_mtime > 7200:
+            if now - f.stat().st_mtime > 3600:
                 try:
                     f.unlink()
                     logging.info(f"Deleted old file: {f}")
