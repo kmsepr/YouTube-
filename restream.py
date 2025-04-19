@@ -21,6 +21,7 @@ CHANNELS = {
     "sunnxt": "https://youtube.com/@sunnxtmalayalam/videos",
     "movieworld": "https://youtube.com/@movieworldmalayalammovies/videos",
     "comedy": "https://youtube.com/@malayalamcomedyscene5334/videos",
+    "studyiq": "https://youtube.com/@studyiqiasenglish/videos",
 }
 
 # Cache to store the current video URL and stream URL
