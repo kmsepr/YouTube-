@@ -87,31 +87,33 @@ threading.Thread(target=update_video_cache_loop, daemon=True).start()
 
 # Generate the stream for the given audio URL
 def generate_stream(url):
-    while True:
-        process = subprocess.Popen([
-    "ffmpeg", "-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "10",
-    "-user_agent", "Mozilla/5.0",
-    "-i", url,
-    "-vn",             # no video
-    "-ac", "1",        # mono audio
-    "-b:a", "40k",     # audio bitrate
-    "-bufsize", "1M",  # buffer size
-    "-f", "mp3",       # output format
-    "-"
-], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    process = subprocess.Popen([
+        "ffmpeg", "-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "10",
+        "-user_agent", "Mozilla/5.0",
+        "-i", url,
+        "-vn",             # no video
+        "-ac", "1",        # mono audio
+        "-b:a", "40k",     # audio bitrate
+        "-bufsize", "1M",  # buffer size
+        "-f", "mp3",       # output format
+        "-"
+    ], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=4096)
 
-        try:
-            for chunk in iter(lambda: process.stdout.read(4096), b""):
-                yield chunk
-                time.sleep(0.02)
-        except GeneratorExit:
-            process.terminate()
-            process.wait()
-            break
-        except Exception:
-            process.terminate()
-            process.wait()
-            time.sleep(5)
+    logging.info(f"🎧 Streaming started: {url}")
+
+    try:
+        for chunk in iter(lambda: process.stdout.read(4096), b""):
+            yield chunk
+            time.sleep(0.02)  # prevent buffer overrun
+    except GeneratorExit:
+        logging.info("🔌 Client disconnected.")
+        process.terminate()
+    except Exception as e:
+        logging.error(f"⚠️ Streaming error: {e}")
+        process.terminate()
+    finally:
+        process.wait()
+        logging.info("⛔ FFmpeg process ended.")
 
 # Flask route to stream audio for a specific channel
 @app.route("/<channel>.mp3")
