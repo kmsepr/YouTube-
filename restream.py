@@ -11,10 +11,15 @@ app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 
 CHANNELS = {
-    "parvinder": "https://www.youtube.com/@pravindersheoran/videos",
     "vallathorukatha": "https://www.youtube.com/@babu_ramachandran/videos",
+    "ddm": "https://www.youtube.com/@ddmalayalamtv/videos",
+    "furqan": "https://youtube.com/@alfurqan4991/videos",
+    "skicr": "https://youtube.com/@skicrtv/videos",
     "dhruvrathee": "https://youtube.com/@dhruvrathee/videos",
     "safari": "https://youtube.com/@safaritvlive/videos",
+    "sunnahdebate": "https://youtube.com/@sunnahdebate1438/videos",
+    "sunnxt": "https://youtube.com/@sunnxtmalayalam/videos",
+    "movieworld": "https://youtube.com/@movieworldmalayalammovies/videos",
     "comedy": "https://youtube.com/@malayalamcomedyscene5334/videos",
     "studyiq": "https://youtube.com/@studyiqiasenglish/videos",
     "vijayakumarblathur": "https://youtube.com/@vijayakumarblathur/videos",
@@ -24,45 +29,43 @@ VIDEO_CACHE = {name: {"url": None, "last_checked": 0} for name in CHANNELS}
 TMP_DIR = Path("/tmp/ytmp3")
 TMP_DIR.mkdir(exist_ok=True)
 
-# Cleanup old files older than 3 hours
+# Cleanup old files older than 2 hours
 def cleanup_old_files():
     while True:
         now = time.time()
         for f in TMP_DIR.glob("*.mp3"):
-            if now - f.stat().st_mtime > 10800:  # 3 hours
+            if now - f.stat().st_mtime > 10800:
                 try:
                     f.unlink()
                     logging.info(f"Deleted old file: {f}")
                 except Exception as e:
                     logging.warning(f"Could not delete {f}: {e}")
-        time.sleep(300)  # Run cleanup every 5 minutes
+        time.sleep(3600)
 
-# Periodic refresh of latest video URLs every 30 minutes
+# Periodic refresh of latest video URLs
 def update_video_cache_loop():
     while True:
-        logging.info("Refreshing video cache...")
         for name, url in CHANNELS.items():
-            try:
-                video_url = fetch_latest_video_url(url)
-                if video_url:
-                    VIDEO_CACHE[name]["url"] = video_url
-                    VIDEO_CACHE[name]["last_checked"] = time.time()
-                    logging.info(f"Updated cache for {name}: {video_url}")
-            except Exception as e:
-                logging.error(f"Error updating {name}: {e}")
-        logging.info("Video cache refresh completed.")
-        time.sleep(1800)  # Refresh every 30 minutes
+            video_url = fetch_latest_video_url(url)
+            if video_url:
+                VIDEO_CACHE[name]["url"] = video_url
+                VIDEO_CACHE[name]["last_checked"] = time.time()
+                # Proactively download and convert
+                download_and_convert(name, video_url)
+        time.sleep(10800)
 
-# Convert audio every 15 minutes if no MP3 exists
-def check_missing_mp3s():
+# Background pre-download of MP3s
+def auto_download_mp3s():
     while True:
         for name, data in VIDEO_CACHE.items():
-            mp3_path = TMP_DIR / f"{name}.mp3"
             video_url = data.get("url")
-            if video_url and not mp3_path.exists():
-                logging.info(f"MP3 missing, converting {name}")
-                download_and_convert(name, video_url)
-        time.sleep(900)  # Every 15 minutes
+            if video_url:
+                mp3_path = TMP_DIR / f"{name}.mp3"
+                # Skip if file exists and is recent
+                if not mp3_path.exists() or time.time() - mp3_path.stat().st_mtime > 1800:
+                    logging.info(f"Pre-downloading {name}")
+                    download_and_convert(name, video_url)
+        time.sleep(3600)
 
 def fetch_latest_video_url(channel_url):
     try:
@@ -116,6 +119,7 @@ def stream_mp3(channel):
     file_size = os.path.getsize(mp3_path)
     range_header = request.headers.get('Range', None)
 
+    # If Range header exists, handle it for partial content streaming
     if range_header:
         byte1, byte2 = range_header.strip().split('=')[1].split('-')
         byte1 = int(byte1)
@@ -127,7 +131,7 @@ def stream_mp3(channel):
 
         return Response(
             chunk,
-            status=206,
+            status=206,  # Partial Content
             content_type='audio/mpeg',
             content_range=f"bytes {byte1}-{byte2}/{file_size}",
             content_length=len(chunk)
@@ -145,7 +149,7 @@ def index():
 # Start background threads
 threading.Thread(target=update_video_cache_loop, daemon=True).start()
 threading.Thread(target=cleanup_old_files, daemon=True).start()
-threading.Thread(target=check_missing_mp3s, daemon=True).start()
+threading.Thread(target=auto_download_mp3s, daemon=True).start()
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000)
