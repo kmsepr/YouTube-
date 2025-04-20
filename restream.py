@@ -11,6 +11,8 @@ app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 
 CHANNELS = {
+
+"parvinder": "https://www.youtube.com/@pravindersheoran",
     "vallathorukatha": "https://www.youtube.com/@babu_ramachandran/videos",
     "ddm": "https://www.youtube.com/@ddmalayalamtv/videos",
     "furqan": "https://youtube.com/@alfurqan4991/videos",
