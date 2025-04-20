@@ -45,14 +45,21 @@ def cleanup_old_files():
 # Periodic refresh of latest video URLs
 def update_video_cache_loop():
     while True:
+        logging.info("Refreshing video cache...")
         for name, url in CHANNELS.items():
-            video_url = fetch_latest_video_url(url)
-            if video_url:
-                VIDEO_CACHE[name]["url"] = video_url
-                VIDEO_CACHE[name]["last_checked"] = time.time()
-                # Proactively download and convert
-                download_and_convert(name, video_url)
-        time.sleep(10800)
+            try:
+                video_url = fetch_latest_video_url(url)
+                if video_url:
+                    VIDEO_CACHE[name]["url"] = video_url
+                    VIDEO_CACHE[name]["last_checked"] = time.time()
+                    logging.info(f"Updated cache for {name}: {video_url}")
+                    download_and_convert(name, video_url)
+                else:
+                    logging.warning(f"No video URL found for {name}")
+            except Exception as e:
+                logging.error(f"Error updating {name}: {e}")
+        logging.info("Video cache refresh completed.")
+        time.sleep(3600)  # Refresh every 1 hour
 
 # Background pre-download of MP3s
 def auto_download_mp3s():
