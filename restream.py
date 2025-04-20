@@ -10,6 +10,26 @@ logging.basicConfig(level=logging.INFO)
 
 # List of YouTube channels to fetch from
 CHANNELS = {
+
+"qasimi": "https://www.youtube.com/@quranstudycentremukkam/videos",
+
+"sharique": "https://wwwmyoutube.com/@shariquesamsudheen/videos",
+
+"drali": "https://www.youtube.com/@draligomaa/videos",
+
+"yaqeen": "https://youtube.com/@yaqeeninstituteofficial/videos",
+
+"talent": "https://youtube.com/@talentacademyonline/videos",
+
+"suprabhatam": "https://youtube.com/@suprabhaatham2023/videos",
+
+"bayyinah": "https://youtube.com/@bayyinah/videos",
+
+"zamzam": "https://youtube.com/@zamzamacademy/videos",
+
+"jrstudio": "https://https://youtube.com/@jrstudiomalayalam/videos",
+
+
     "parvinder": "https://www.youtube.com/@pravindersheoran/videos",
     "vallathorukatha": "https://www.youtube.com/@babu_ramachandran/videos",
     "furqan": "https://youtube.com/@alfurqan4991/videos",
