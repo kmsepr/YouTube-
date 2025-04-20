@@ -11,8 +11,7 @@ app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 
 CHANNELS = {
-
-"parvinder": "https://www.youtube.com/@pravindersheoran",
+    "parvinder": "https://www.youtube.com/@pravindersheoran",
     "vallathorukatha": "https://www.youtube.com/@babu_ramachandran/videos",
     "ddm": "https://www.youtube.com/@ddmalayalamtv/videos",
     "furqan": "https://youtube.com/@alfurqan4991/videos",
@@ -31,12 +30,12 @@ VIDEO_CACHE = {name: {"url": None, "last_checked": 0} for name in CHANNELS}
 TMP_DIR = Path("/tmp/ytmp3")
 TMP_DIR.mkdir(exist_ok=True)
 
-# Cleanup old files older than 1 hour
+# Cleanup old files older than 3 hours
 def cleanup_old_files():
     while True:
         now = time.time()
         for f in TMP_DIR.glob("*.mp3"):
-            if now - f.stat().st_mtime > 3600:
+            if now - f.stat().st_mtime > 10800:  # 3 hours
                 try:
                     f.unlink()
                     logging.info(f"Deleted old file: {f}")
@@ -44,7 +43,7 @@ def cleanup_old_files():
                     logging.warning(f"Could not delete {f}: {e}")
         time.sleep(300)  # Run cleanup every 5 minutes
 
-# Periodic refresh of latest video URLs
+# Periodic refresh of latest video URLs every 30 minutes
 def update_video_cache_loop():
     while True:
         logging.info("Refreshing video cache...")
@@ -55,25 +54,21 @@ def update_video_cache_loop():
                     VIDEO_CACHE[name]["url"] = video_url
                     VIDEO_CACHE[name]["last_checked"] = time.time()
                     logging.info(f"Updated cache for {name}: {video_url}")
-                    download_and_convert(name, video_url)
-                else:
-                    logging.warning(f"No video URL found for {name}")
             except Exception as e:
                 logging.error(f"Error updating {name}: {e}")
         logging.info("Video cache refresh completed.")
-        time.sleep(300)  # Refresh every 5 minutes
+        time.sleep(1800)  # Refresh every 30 minutes
 
-# Background pre-download of MP3s
-def auto_download_mp3s():
+# Convert audio every 15 minutes if no MP3 exists
+def check_missing_mp3s():
     while True:
         for name, data in VIDEO_CACHE.items():
+            mp3_path = TMP_DIR / f"{name}.mp3"
             video_url = data.get("url")
-            if video_url:
-                mp3_path = TMP_DIR / f"{name}.mp3"
-                if not mp3_path.exists() or time.time() - mp3_path.stat().st_mtime > 300:
-                    logging.info(f"Pre-downloading {name}")
-                    download_and_convert(name, video_url)
-        time.sleep(300)  # Every 5 minutes
+            if video_url and not mp3_path.exists():
+                logging.info(f"MP3 missing, converting {name}")
+                download_and_convert(name, video_url)
+        time.sleep(900)  # Every 15 minutes
 
 def fetch_latest_video_url(channel_url):
     try:
@@ -153,9 +148,10 @@ def index():
     links = [f'<li><a href="/{f.stem}.mp3">{f.stem}.mp3</a> (created: {time.ctime(f.stat().st_mtime)})</li>' for f in files]
     return f"<h3>Available Streams</h3><ul>{''.join(links)}</ul>"
 
+# Start background threads
 threading.Thread(target=update_video_cache_loop, daemon=True).start()
 threading.Thread(target=cleanup_old_files, daemon=True).start()
-threading.Thread(target=auto_download_mp3s, daemon=True).start()
+threading.Thread(target=check_missing_mp3s, daemon=True).start()
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000)
