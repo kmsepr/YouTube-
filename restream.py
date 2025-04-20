@@ -11,13 +11,14 @@ app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 
 CHANNELS = {
+    "parvinder": "https://www.youtube.com/@pravindersheoran/videos",
     "vallathorukatha": "https://www.youtube.com/@babu_ramachandran/videos",
-    "ddm": "https://www.youtube.com/@ddmalayalamtv/videos",
+   
     "furqan": "https://youtube.com/@alfurqan4991/videos",
     "skicr": "https://youtube.com/@skicrtv/videos",
     "dhruvrathee": "https://youtube.com/@dhruvrathee/videos",
     "safari": "https://youtube.com/@safaritvlive/videos",
-    "sunnahdebate": "https://youtube.com/@sunnahdebate1438/videos",
+    
     "sunnxt": "https://youtube.com/@sunnxtmalayalam/videos",
     "movieworld": "https://youtube.com/@movieworldmalayalammovies/videos",
     "comedy": "https://youtube.com/@malayalamcomedyscene5334/videos",
