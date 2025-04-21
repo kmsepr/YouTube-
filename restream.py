@@ -189,9 +189,8 @@ def index():
         if not mp3_path.exists():
             continue
         avatar = VIDEO_CACHE[channel].get("avatar", "")
-        # Uncomment to use fallback if missing:
-        # if not avatar:
-        #     avatar = "https://via.placeholder.com/30?text=YT"
+if not avatar:
+    avatar = "https://via.placeholder.com/30?text=YT"
         avatar_img = f'<img src="{avatar}" loading="lazy" style="height:30px; vertical-align:middle; margin-right:10px;">' if avatar else ""
         html += f'<li style="margin-bottom:10px;">{avatar_img}<a href="/{channel}.mp3">{channel}</a> <small>({time.ctime(mp3_path.stat().st_mtime)})</small></li>'
     html += "</ul>"
