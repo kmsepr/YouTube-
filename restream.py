@@ -1,14 +1,15 @@
-from flask import Flask, Response
+from flask import Flask, Response, send_file, request
 import subprocess
 import json
+import os
 import logging
 import time
 import threading
+from pathlib import Path
 
 app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 
-# YouTube channel list
 CHANNELS = {
     "qasimi": "https://www.youtube.com/@quranstudycentremukkam/videos",
     "sharique": "https://www.youtube.com/@shariquesamsudheen/videos",
@@ -36,120 +37,131 @@ CHANNELS = {
 "entridegree": "https://youtube.com/@entridegreelevelexams/videos",
 }
 
-# Cache to store latest video info per channel
-VIDEO_CACHE = {name: {"url": None, "stream_url": None, "last_checked": 0} for name in CHANNELS}
+VIDEO_CACHE = {name: {"url": None, "last_checked": 0} for name in CHANNELS}
+TMP_DIR = Path("/tmp/ytmp3")
+TMP_DIR.mkdir(exist_ok=True)
 
-# Get latest video URL
-def fetch_latest_video_url(channel_url):
-    try:
-        cmd = [
-            "yt-dlp", "--flat-playlist", "--playlist-end", "1",
-            "--dump-single-json", "--cookies", "/mnt/data/cookies.txt", channel_url
-        ]
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        if result.returncode != 0:
-            logging.error("yt-dlp error: %s", result.stderr)
-            return None
-        data = json.loads(result.stdout)
-        video_id = data["entries"][0]["id"]
-        return f"https://www.youtube.com/watch?v={video_id}"
-    except Exception:
-        logging.exception("Error fetching latest video URL")
-        return None
+# Cleanup old files older than 2 hours
+def cleanup_old_files():
+    while True:
+        now = time.time()
+        for f in TMP_DIR.glob("*.mp3"):
+            if now - f.stat().st_mtime > 10800:
+                try:
+                    f.unlink()
+                    logging.info(f"Deleted old file: {f}")
+                except Exception as e:
+                    logging.warning(f"Could not delete {f}: {e}")
+        time.sleep(3600)
 
-# Get direct audio stream URL
-def get_best_audio_url(video_url):
-    try:
-        cmd = [
-            "yt-dlp", "-f", "bestaudio", "-g", "--cookies", "/mnt/data/cookies.txt", video_url
-        ]
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        if result.returncode == 0:
-            return result.stdout.strip()
-        else:
-            logging.error("yt-dlp error: %s", result.stderr)
-            return None
-    except Exception:
-        logging.exception("Error extracting best audio URL")
-        return None
-
-# Background thread to refresh cache every 30 minutes
+# Periodic refresh of latest video URLs
 def update_video_cache_loop():
     while True:
         for name, url in CHANNELS.items():
-            logging.info(f"Refreshing {name}...")
             video_url = fetch_latest_video_url(url)
             if video_url:
-                stream_url = get_best_audio_url(video_url)
-                if stream_url:
-                    VIDEO_CACHE[name] = {
-                        "url": video_url,
-                        "stream_url": stream_url,
-                        "last_checked": time.time()
-                    }
-                    logging.info(f"✅ {name}: {video_url} -> {stream_url}")
-                else:
-                    logging.warning(f"❌ Failed stream URL for {name}")
-            else:
-                logging.warning(f"❌ Failed video fetch for {name}")
-        time.sleep(1800)  # 30 minutes
+                VIDEO_CACHE[name]["url"] = video_url
+                VIDEO_CACHE[name]["last_checked"] = time.time()
+                # Proactively download and convert
+                download_and_convert(name, video_url)
+        time.sleep(10800)
 
-threading.Thread(target=update_video_cache_loop, daemon=True).start()
+# Background pre-download of MP3s
+def auto_download_mp3s():
+    while True:
+        for name, data in VIDEO_CACHE.items():
+            video_url = data.get("url")
+            if video_url:
+                mp3_path = TMP_DIR / f"{name}.mp3"
+                # Skip if file exists and is recent
+                if not mp3_path.exists() or time.time() - mp3_path.stat().st_mtime > 1800:
+                    logging.info(f"Pre-downloading {name}")
+                    download_and_convert(name, video_url)
+        time.sleep(3600)
 
-# FFMPEG stream generator
-def generate_stream(url):
-    process = subprocess.Popen([
-        "ffmpeg",
-        "-user_agent", "Mozilla/5.0",
-        "-i", url,
-        "-vn", "-ac", "1", "-b:a", "40k", "-bufsize", "1M", "-f", "mp3", "-"
-    ], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+def fetch_latest_video_url(channel_url):
+    try:
+        result = subprocess.run([
+            "yt-dlp", "--flat-playlist", "--playlist-end", "1",
+            "--dump-single-json", "--cookies", "/mnt/data/cookies.txt", channel_url
+        ], capture_output=True, text=True, check=True)
+        data = json.loads(result.stdout)
+        video_id = data["entries"][0]["id"]
+        return f"https://www.youtube.com/watch?v={video_id}"
+    except Exception as e:
+        logging.error(f"Error fetching video: {e}")
+        return None
+
+def download_and_convert(channel, video_url):
+    mp3_path = TMP_DIR / f"{channel}.mp3"
+    if mp3_path.exists():
+        return mp3_path
 
     try:
-        while True:
-            if process.poll() is not None:
-                break  # FFmpeg process ended
-            chunk = process.stdout.read(4096)
-            if not chunk:
-                break
-            yield chunk
-            time.sleep(0.02)
-    except GeneratorExit:
-        process.terminate()
-    except Exception:
-        process.terminate()
-    finally:
-        process.wait()
+        audio_url = subprocess.run([
+            "yt-dlp", "-f", "bestaudio", "-g", "--cookies", "/mnt/data/cookies.txt", video_url
+        ], capture_output=True, text=True, check=True).stdout.strip()
 
-# Stream route
+        cmd = [
+            "ffmpeg", "-i", audio_url,
+            "-ac", "1", "-b:a", "40k", "-f", "mp3", "-y", str(mp3_path)
+        ]
+        subprocess.run(cmd, check=True)
+        return mp3_path
+    except Exception as e:
+        logging.error(f"Error converting {channel}: {e}")
+        return None
+
 @app.route("/<channel>.mp3")
 def stream_mp3(channel):
     if channel not in CHANNELS:
-        return "Invalid channel", 404
+        return "Channel not found", 404
 
-    data = VIDEO_CACHE[channel]
+    video_url = VIDEO_CACHE[channel].get("url") or fetch_latest_video_url(CHANNELS[channel])
+    if not video_url:
+        return "Unable to fetch video", 500
 
-    # Refresh if cache is over 1 hour old
-    if time.time() - data["last_checked"] > 3600:
-        video_url = fetch_latest_video_url(CHANNELS[channel])
-        stream_url = get_best_audio_url(video_url) if video_url else None
-        if video_url and stream_url:
-            VIDEO_CACHE[channel] = {
-                "url": video_url,
-                "stream_url": stream_url,
-                "last_checked": time.time()
-            }
-        else:
-            return f"Could not refresh stream for '{channel}'", 503
+    VIDEO_CACHE[channel]["url"] = video_url
+    VIDEO_CACHE[channel]["last_checked"] = time.time()
 
-    return Response(generate_stream(VIDEO_CACHE[channel]["stream_url"]), mimetype="audio/mpeg")
+    mp3_path = download_and_convert(channel, video_url)
+    if not mp3_path or not mp3_path.exists():
+        return "Error preparing stream", 500
 
-# Home route
+    file_size = os.path.getsize(mp3_path)
+    range_header = request.headers.get('Range', None)
+
+    # If Range header exists, handle it for partial content streaming
+    if range_header:
+        byte1, byte2 = range_header.strip().split('=')[1].split('-')
+        byte1 = int(byte1)
+        byte2 = int(byte2) if byte2 else file_size - 1
+
+        with open(mp3_path, 'rb') as f:
+            f.seek(byte1)
+            chunk = f.read(byte2 - byte1 + 1)
+
+        return Response(
+            chunk,
+            status=206,  # Partial Content
+            content_type='audio/mpeg',
+            content_range=f"bytes {byte1}-{byte2}/{file_size}",
+            content_length=len(chunk)
+        )
+    else:
+        with open(mp3_path, 'rb') as f:
+            return Response(f.read(), content_type='audio/mpeg')
+
 @app.route("/")
 def index():
-    links = [f'<li><a href="/{ch}.mp3">{ch}.mp3</a></li>' for ch in CHANNELS]
+    files = list(TMP_DIR.glob("*.mp3"))
+    links = [f'<li><a href="/{f.stem}.mp3">{f.stem}.mp3</a> (created: {time.ctime(f.stat().st_mtime)})</li>' for f in files]
     return f"<h3>Available Streams</h3><ul>{''.join(links)}</ul>"
 
-# Run app
+# Start background threads
+threading.Thread(target=update_video_cache_loop, daemon=True).start()
+threading.Thread(target=cleanup_old_files, daemon=True).start()
+threading.Thread(target=auto_download_mp3s, daemon=True).start()
+
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8000)
+    app.run(host="0.0.0.0", port=8000) 
