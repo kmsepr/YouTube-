@@ -118,15 +118,15 @@ def download_and_convert(channel, video_url):
 
     try:
         subprocess.run([
-            "yt-dlp",
-            "-f", "bestaudio",
-            "--extract-audio",
-            "--audio-format", "mp3",
-            "--audio-quality", "5",
-            "--output", str(yt_output),
-            "--cookies", "/mnt/data/cookies.txt",
-            video_url
-        ], check=True)
+    "yt-dlp",
+    "-f", "bestaudio",
+    "--output", str(TMP_DIR / f"{channel}.%(ext)s"),
+    "--cookies", "/mnt/data/cookies.txt",
+    "--postprocessor-args", "-ar 22050 -ac 1 -b:a 40k",
+    "--extract-audio",
+    "--audio-format", "mp3",
+    video_url
+], check=True)
 
         return final_path if final_path.exists() else None
     except Exception as e:
