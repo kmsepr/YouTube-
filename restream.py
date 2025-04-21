@@ -130,27 +130,37 @@ def stream_mp3(channel):
 
     file_size = os.path.getsize(mp3_path)
     range_header = request.headers.get('Range', None)
+    headers = {
+        'Content-Type': 'audio/mpeg',
+        'Accept-Ranges': 'bytes',
+    }
 
-    # If Range header exists, handle it for partial content streaming
     if range_header:
-        byte1, byte2 = range_header.strip().split('=')[1].split('-')
-        byte1 = int(byte1)
-        byte2 = int(byte2) if byte2 else file_size - 1
+        try:
+            range_value = range_header.strip().split("=")[1]
+            byte1, byte2 = range_value.split("-")
+            byte1 = int(byte1)
+            byte2 = int(byte2) if byte2 else file_size - 1
+        except Exception as e:
+            return f"Invalid Range header: {e}", 400
 
+        length = byte2 - byte1 + 1
         with open(mp3_path, 'rb') as f:
             f.seek(byte1)
-            chunk = f.read(byte2 - byte1 + 1)
+            chunk = f.read(length)
 
-        return Response(
-            chunk,
-            status=206,  # Partial Content
-            content_type='audio/mpeg',
-            content_range=f"bytes {byte1}-{byte2}/{file_size}",
-            content_length=len(chunk)
-        )
-    else:
-        with open(mp3_path, 'rb') as f:
-            return Response(f.read(), content_type='audio/mpeg')
+        headers.update({
+            'Content-Range': f'bytes {byte1}-{byte2}/{file_size}',
+            'Content-Length': str(length)
+        })
+
+        return Response(chunk, status=206, headers=headers)
+
+    # No Range header, serve full content
+    with open(mp3_path, 'rb') as f:
+        data = f.read()
+    headers['Content-Length'] = str(file_size)
+    return Response(data, headers=headers)
 
 @app.route("/")
 def index():
