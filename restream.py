@@ -88,7 +88,7 @@ def fetch_latest_video_url(name, channel_url):
             "yt-dlp",
             "--dump-single-json",
             "--playlist-end", "1",
-            "--cookies", "/mnt/data/cookies.txt",
+            "--cookies", "/mnt/data/cookies.txt","--user-agent", "Mozilla/5.0",
             channel_url
         ], capture_output=True, text=True, check=True)
 
@@ -113,7 +113,7 @@ def download_and_convert(channel, video_url):
             "yt-dlp",
             "-f", "bestaudio",
             "--output", str(TMP_DIR / f"{channel}.%(ext)s"),
-            "--cookies", "/mnt/data/cookies.txt",
+            "--cookies", "/mnt/data/cookies.txt","--user-agent", "Mozilla/5.0",
             "--postprocessor-args", "-ar 22050 -ac 1 -b:a 40k",
             "--extract-audio",
             "--audio-format", "mp3",
