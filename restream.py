@@ -52,7 +52,7 @@ def cleanup_old_files():
                     logging.info(f"Deleted old file: {f}")
                 except Exception as e:
                     logging.warning(f"Could not delete {f}: {e}")
-        time.sleep(3600)
+        time.sleep(600)
 
 # Periodic refresh of latest video URLs
 def update_video_cache_loop():
@@ -64,7 +64,7 @@ def update_video_cache_loop():
                 VIDEO_CACHE[name]["last_checked"] = time.time()
                 # Proactively download and convert
                 download_and_convert(name, video_url)
-        time.sleep(10800)
+        time.sleep(600)
 
 # Background pre-download of MP3s
 def auto_download_mp3s():
@@ -77,7 +77,7 @@ def auto_download_mp3s():
                 if not mp3_path.exists() or time.time() - mp3_path.stat().st_mtime > 1800:
                     logging.info(f"Pre-downloading {name}")
                     download_and_convert(name, video_url)
-        time.sleep(3600)
+        time.sleep(1800)
 
 def fetch_latest_video_url(channel_url):
     try:
