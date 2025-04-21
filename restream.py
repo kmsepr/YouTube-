@@ -102,7 +102,7 @@ def fetch_latest_video_url(channel_url):
         
         return f"https://www.youtube.com/watch?v={video_id}"
     except Exception as e:
-        logging.error(f"Error fetching video: {e}")
+        logging.error(f"Error fetching video from {channel_url}: {e}")
         return None
 
 def download_and_convert(channel, video_url):
@@ -111,6 +111,10 @@ def download_and_convert(channel, video_url):
 
     if final_path.exists():
         return final_path
+
+    if not video_url:
+        logging.warning(f"Skipping download for {channel} because video URL is not available.")
+        return None
 
     try:
         subprocess.run([
