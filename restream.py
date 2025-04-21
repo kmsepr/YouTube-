@@ -1,33 +1,56 @@
-# Imports (same as before)
-from flask import Flask, Response, request
-import subprocess, json, os, logging, time, threading, random
+from flask import Flask, Response, send_file, request
+import subprocess
+import json
+import os
+import logging
+import time
+import threading
 from pathlib import Path
+import random
 
 app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 
-# Constants (unchanged)
-REFRESH_INTERVAL = 900
-RECHECK_INTERVAL = 1800
-CLEANUP_INTERVAL = 1800
-EXPIRE_AGE = 10800
+# Interval settings (hardcoded)
+REFRESH_INTERVAL = 900        # 15 minutes — fetch latest video URLs
+RECHECK_INTERVAL = 1800       # 30 minutes — re-download & convert if outdated
+CLEANUP_INTERVAL = 1800       # 30 minutes — cleanup old files
+EXPIRE_AGE = 10800            # 3 hours — how old files must be to delete
 
-# Channels list (same as your original)
 CHANNELS = {
     "qasimi": "https://www.youtube.com/@quranstudycentremukkam/videos",
     "sharique": "https://www.youtube.com/@shariquesamsudheen/videos",
-    # ... other channels ...
+    "drali": "https://www.youtube.com/@draligomaa/videos",
+    "yaqeen": "https://youtube.com/@yaqeeninstituteofficial/videos",
+    "talent": "https://youtube.com/@talentacademyonline/videos",
+    "suprabhatam": "https://youtube.com/@suprabhaatham2023/videos",
+    "bayyinah": "https://youtube.com/@bayyinah/videos",
+    "zamzam": "https://youtube.com/@zamzamacademy/videos",
+    "jrstudio": "https://youtube.com/@jrstudiomalayalam/videos",
+    "raftalks": "https://youtube.com/@raftalksmalayalam/videos",
+    "parvinder": "https://www.youtube.com/@pravindersheoran/videos",
+    "vallathorukatha": "https://www.youtube.com/@babu_ramachandran/videos",
+    "furqan": "https://youtube.com/@alfurqan4991/videos",
+    "skicr": "https://youtube.com/@skicrtv/videos",
+    "dhruvrathee": "https://youtube.com/@dhruvrathee/videos",
+    "safari": "https://youtube.com/@safaritvlive/videos",
+    "sunnxt": "https://youtube.com/@sunnxtmalayalam/videos",
+    "movieworld": "https://youtube.com/@movieworldmalayalammovies/videos",
+    "comedy": "https://youtube.com/@malayalamcomedyscene5334/videos",
+    "studyiq": "https://youtube.com/@studyiqiasenglish/videos",
+    "vijayakumarblathur": "https://youtube.com/@vijayakumarblathur/videos",
+    "entridegree": "https://youtube.com/@entridegreelevelexams/videos",
 }
 
 VIDEO_CACHE = {name: {"url": None, "last_checked": 0} for name in CHANNELS}
-TMP_DIR = Path("/tmp/ytvid")
+TMP_DIR = Path("/tmp/ytmp3")
 TMP_DIR.mkdir(exist_ok=True)
 
-# Cleanup old files
+# Cleanup old files older than EXPIRE_AGE (3 hours)
 def cleanup_old_files():
     while True:
         now = time.time()
-        for f in TMP_DIR.glob("*.mp4"):
+        for f in TMP_DIR.glob("*.mp3"):
             if now - f.stat().st_mtime > EXPIRE_AGE:
                 try:
                     f.unlink()
@@ -36,7 +59,7 @@ def cleanup_old_files():
                     logging.warning(f"Could not delete {f}: {e}")
         time.sleep(CLEANUP_INTERVAL)
 
-# Update video cache loop
+# Periodic refresh of latest video URLs (every 15 mins)
 def update_video_cache_loop():
     while True:
         for name, url in CHANNELS.items():
@@ -44,20 +67,24 @@ def update_video_cache_loop():
             if video_url:
                 VIDEO_CACHE[name]["url"] = video_url
                 VIDEO_CACHE[name]["last_checked"] = time.time()
+                # Proactively download and convert
                 download_and_convert(name, video_url)
+            # Random sleep to avoid rate-limiting (between 5-10 seconds)
             time.sleep(random.randint(5, 10))
         time.sleep(REFRESH_INTERVAL)
 
-# Periodic downloader
-def auto_download_videos():
+# Background pre-download of MP3s (every 30 mins)
+def auto_download_mp3s():
     while True:
         for name, data in VIDEO_CACHE.items():
             video_url = data.get("url")
             if video_url:
-                mp4_path = TMP_DIR / f"{name}.mp4"
-                if not mp4_path.exists() or time.time() - mp4_path.stat().st_mtime > RECHECK_INTERVAL:
+                mp3_path = TMP_DIR / f"{name}.mp3"
+                # Skip if file exists and is recent
+                if not mp3_path.exists() or time.time() - mp3_path.stat().st_mtime > RECHECK_INTERVAL:
                     logging.info(f"Pre-downloading {name}")
                     download_and_convert(name, video_url)
+            # Random sleep to avoid rate-limiting (between 5-10 seconds)
             time.sleep(random.randint(5, 10))
         time.sleep(RECHECK_INTERVAL)
 
@@ -69,46 +96,49 @@ def fetch_latest_video_url(channel_url):
         ], capture_output=True, text=True, check=True)
         data = json.loads(result.stdout)
         video_id = data["entries"][0]["id"]
+        
+        # Random delay to avoid rate-limiting (between 5-10 seconds)
         time.sleep(random.randint(5, 10))
+        
         return f"https://www.youtube.com/watch?v={video_id}"
     except Exception as e:
         logging.error(f"Error fetching video from {channel_url}: {e}")
         return None
 
 def download_and_convert(channel, video_url):
-    mp4_path = TMP_DIR / f"{channel}.mp4"
-    webm_path = TMP_DIR / f"{channel}.webm"
+    final_path = TMP_DIR / f"{channel}.mp3"
+    yt_output = TMP_DIR / f"{channel}.mp3"
 
-    if mp4_path.exists():
-        return mp4_path
+    if final_path.exists():
+        return final_path
+
+    if not video_url:
+        logging.warning(f"Skipping download for {channel} because video URL is not available.")
+        return None
 
     try:
         subprocess.run([
-            "yt-dlp", "-f", "bestvideo[ext=webm]+bestaudio[ext=webm]/best",
-            "--output", str(webm_path),
-            "--cookies", "/mnt/data/cookies.txt",
-            video_url
-        ], check=True)
+    "yt-dlp",
+    "-f", "bestaudio",
+    "--output", str(TMP_DIR / f"{channel}.%(ext)s"),
+    "--cookies", "/mnt/data/cookies.txt",
+    "--postprocessor-args", "-ar 22050 -ac 1 -b:a 40k",
+    "--extract-audio",
+    "--audio-format", "mp3",
+    video_url
+], check=True)
 
-        subprocess.run([
-            "ffmpeg", "-y", "-i", str(webm_path),
-            "-vf", "scale=320:240", "-r", "15",
-            "-b:v", "384k", "-b:a", "12k", "-ac", "1",
-            "-c:v", "libx264", "-c:a", "aac",
-            str(mp4_path)
-        ], check=True)
-
-        if webm_path.exists():
-            webm_path.unlink()
-
-        return mp4_path if mp4_path.exists() else None
-
+        return final_path if final_path.exists() else None
     except Exception as e:
         logging.error(f"Error converting {channel}: {e}")
+        # Cleanup partial
+        partial = final_path.with_suffix(".mp3.part")
+        if partial.exists():
+            partial.unlink()
         return None
 
-@app.route("/<channel>.mp4")
-def stream_video(channel):
+@app.route("/<channel>.mp3")
+def stream_mp3(channel):
     if channel not in CHANNELS:
         return "Channel not found", 404
 
@@ -119,14 +149,14 @@ def stream_video(channel):
     VIDEO_CACHE[channel]["url"] = video_url
     VIDEO_CACHE[channel]["last_checked"] = time.time()
 
-    mp4_path = download_and_convert(channel, video_url)
-    if not mp4_path or not mp4_path.exists():
-        return "Error preparing video", 500
+    mp3_path = download_and_convert(channel, video_url)
+    if not mp3_path or not mp3_path.exists():
+        return "Error preparing stream", 500
 
-    file_size = os.path.getsize(mp4_path)
+    file_size = os.path.getsize(mp3_path)
     range_header = request.headers.get('Range', None)
     headers = {
-        'Content-Type': 'video/mp4',
+        'Content-Type': 'audio/mpeg',
         'Accept-Ranges': 'bytes',
     }
 
@@ -140,7 +170,7 @@ def stream_video(channel):
             return f"Invalid Range header: {e}", 400
 
         length = byte2 - byte1 + 1
-        with open(mp4_path, 'rb') as f:
+        with open(mp3_path, 'rb') as f:
             f.seek(byte1)
             chunk = f.read(length)
 
@@ -151,21 +181,22 @@ def stream_video(channel):
 
         return Response(chunk, status=206, headers=headers)
 
-    with open(mp4_path, 'rb') as f:
+    # No Range header, serve full content
+    with open(mp3_path, 'rb') as f:
         data = f.read()
     headers['Content-Length'] = str(file_size)
     return Response(data, headers=headers)
 
 @app.route("/")
 def index():
-    files = list(TMP_DIR.glob("*.mp4"))
-    links = [f'<li><a href="/{f.stem}.mp4">{f.stem}.mp4</a> (created: {time.ctime(f.stat().st_mtime)})</li>' for f in files]
-    return f"<h3>Available Video Streams</h3><ul>{''.join(links)}</ul>"
+    files = list(TMP_DIR.glob("*.mp3"))
+    links = [f'<li><a href="/{f.stem}.mp3">{f.stem}.mp3</a> (created: {time.ctime(f.stat().st_mtime)})</li>' for f in files]
+    return f"<h3>Available Streams</h3><ul>{''.join(links)}</ul>"
 
 # Start background threads
 threading.Thread(target=update_video_cache_loop, daemon=True).start()
 threading.Thread(target=cleanup_old_files, daemon=True).start()
-threading.Thread(target=auto_download_videos, daemon=True).start()
+threading.Thread(target=auto_download_mp3s, daemon=True).start()
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000)
