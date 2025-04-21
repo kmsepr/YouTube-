@@ -19,7 +19,7 @@ EXPIRE_AGE = 10800            # 3 hours — how old files must be to delete
 CHANNELS = {
     "qasimi": "https://www.youtube.com/@quranstudycentremukkam/videos",
     "sharique": "https://www.youtube.com/@shariquesamsudheen/videos",
-    "drali": "https://www.youtube.com/@draligomaa/videos",
+    "drali": "https://youtube.com/@draligomaa/videos",
     "yaqeen": "https://youtube.com/@yaqeeninstituteofficial/videos",
     "talent": "https://youtube.com/@talentacademyonline/videos",
     "suprabhatam": "https://youtube.com/@suprabhaatham2023/videos",
@@ -98,7 +98,6 @@ def fetch_latest_video_url(channel_url):
 
 def download_and_convert(channel, video_url):
     final_path = TMP_DIR / f"{channel}.mp3"
-    temp_path = TMP_DIR / f"{channel}.mp3.part"
 
     if final_path.exists():
         return final_path
@@ -110,17 +109,16 @@ def download_and_convert(channel, video_url):
             "--extract-audio",
             "--audio-format", "mp3",
             "--audio-quality", "5",
-            "--output", str(temp_path),
+            "--output", str(final_path),
             "--cookies", "/mnt/data/cookies.txt",
             video_url
         ], check=True)
 
-        temp_path.rename(final_path)
         return final_path
     except Exception as e:
         logging.error(f"Error converting {channel}: {e}")
-        if temp_path.exists():
-            temp_path.unlink()
+        if final_path.exists():
+            final_path.unlink()
         return None
 
 @app.route("/<channel>.mp3")
