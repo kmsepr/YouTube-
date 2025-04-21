@@ -98,15 +98,16 @@ def download_and_convert(channel, video_url):
         return mp3_path
 
     try:
-        audio_url = subprocess.run([
-            "yt-dlp", "-f", "bestaudio", "-g", "--cookies", "/mnt/data/cookies.txt", video_url
-        ], capture_output=True, text=True, check=True).stdout.strip()
-
-        cmd = [
-            "ffmpeg", "-i", audio_url,
-            "-ac", "1", "-b:a", "40k", "-f", "mp3", "-y", str(mp3_path)
-        ]
-        subprocess.run(cmd, check=True)
+        subprocess.run([
+            "yt-dlp",
+            "-f", "bestaudio",
+            "--extract-audio",
+            "--audio-format", "mp3",
+            "--audio-quality", "5",  # around 130kbps, adjust if needed
+            "--output", str(mp3_path),
+            "--cookies", "/mnt/data/cookies.txt",
+            video_url
+        ], check=True)
         return mp3_path
     except Exception as e:
         logging.error(f"Error converting {channel}: {e}")
