@@ -93,9 +93,11 @@ def fetch_latest_video_url(channel_url):
         return None
 
 def download_and_convert(channel, video_url):
-    mp3_path = TMP_DIR / f"{channel}.mp3"
-    if mp3_path.exists():
-        return mp3_path
+    final_path = TMP_DIR / f"{channel}.mp3"
+    temp_path = TMP_DIR / f"{channel}.mp3.part"
+
+    if final_path.exists():
+        return final_path
 
     try:
         subprocess.run([
@@ -103,14 +105,18 @@ def download_and_convert(channel, video_url):
             "-f", "bestaudio",
             "--extract-audio",
             "--audio-format", "mp3",
-            "--audio-quality", "5",  # around 130kbps, adjust if needed
-            "--output", str(mp3_path),
+            "--audio-quality", "5",
+            "--output", str(temp_path),
             "--cookies", "/mnt/data/cookies.txt",
             video_url
         ], check=True)
-        return mp3_path
+
+        temp_path.rename(final_path)
+        return final_path
     except Exception as e:
         logging.error(f"Error converting {channel}: {e}")
+        if temp_path.exists():
+            temp_path.unlink()
         return None
 
 @app.route("/<channel>.mp3")
