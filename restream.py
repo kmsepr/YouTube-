@@ -65,7 +65,7 @@ def update_video_cache_loop():
             if video_url:
                 VIDEO_CACHE[name]["url"] = video_url
                 VIDEO_CACHE[name]["last_checked"] = time.time()
-                VIDEO_CACHE[name]["avatar"] = avatar_url  # Store avatar URL
+                VIDEO_CACHE[name]["avatar"] = avatar_url
                 download_and_convert(name, video_url)
             time.sleep(random.randint(5, 10))
         time.sleep(REFRESH_INTERVAL)
@@ -85,18 +85,17 @@ def auto_download_mp3s():
 def fetch_latest_video_url(name, channel_url):
     try:
         result = subprocess.run([
-            "yt-dlp", "--flat-playlist", "--playlist-end", "1",
-            "--dump-single-json", "--cookies", "/mnt/data/cookies.txt", channel_url
+            "yt-dlp",
+            "--dump-single-json",
+            "--playlist-end", "1",
+            "--cookies", "/mnt/data/cookies.txt",
+            channel_url
         ], capture_output=True, text=True, check=True)
+
         data = json.loads(result.stdout)
         video_id = data["entries"][0]["id"]
-        channel_id = data.get("channel_id", "")
-
-        # Set avatar URL
-        avatar_url = f"https://yt3.googleusercontent.com/ytc/{channel_id}=s88-c-k-c0x00ffffff-no-rj" if channel_id else ""
-        
-        time.sleep(random.randint(5, 10))
-        return f"https://www.youtube.com/watch?v={video_id}", avatar_url
+        uploader_thumbnail = data.get("uploader_thumbnail", "")
+        return f"https://www.youtube.com/watch?v={video_id}", uploader_thumbnail
     except Exception as e:
         logging.error(f"Error fetching video from {channel_url}: {e}")
         return None, None
@@ -180,12 +179,20 @@ def stream_mp3(channel):
 @app.route("/")
 def index():
     html = "<h3>Available Streams</h3><ul>"
-    for channel, url in CHANNELS.items():
+
+    def get_mtime(channel):
+        f = TMP_DIR / f"{channel}.mp3"
+        return f.stat().st_mtime if f.exists() else 0
+
+    for channel in sorted(CHANNELS, key=get_mtime, reverse=True):
         mp3_path = TMP_DIR / f"{channel}.mp3"
         if not mp3_path.exists():
             continue
         avatar = VIDEO_CACHE[channel].get("avatar", "")
-        avatar_img = f'<img src="{avatar}" style="height:30px; vertical-align:middle; margin-right:10px;">' if avatar else ""
+        # Uncomment to use fallback if missing:
+        # if not avatar:
+        #     avatar = "https://via.placeholder.com/30?text=YT"
+        avatar_img = f'<img src="{avatar}" loading="lazy" style="height:30px; vertical-align:middle; margin-right:10px;">' if avatar else ""
         html += f'<li style="margin-bottom:10px;">{avatar_img}<a href="/{channel}.mp3">{channel}</a> <small>({time.ctime(mp3_path.stat().st_mtime)})</small></li>'
     html += "</ul>"
     return html
