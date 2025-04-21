@@ -99,14 +99,19 @@ threading.Thread(target=update_video_cache_loop, daemon=True).start()
 # FFMPEG stream generator
 def generate_stream(url):
     process = subprocess.Popen([
-        "ffmpeg", "-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "10",
+        "ffmpeg",
         "-user_agent", "Mozilla/5.0",
         "-i", url,
         "-vn", "-ac", "1", "-b:a", "40k", "-bufsize", "1M", "-f", "mp3", "-"
     ], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
 
     try:
-        for chunk in iter(lambda: process.stdout.read(4096), b""):
+        while True:
+            if process.poll() is not None:
+                break  # FFmpeg process ended
+            chunk = process.stdout.read(4096)
+            if not chunk:
+                break
             yield chunk
             time.sleep(0.02)
     except GeneratorExit:
