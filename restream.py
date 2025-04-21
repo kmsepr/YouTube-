@@ -61,10 +61,11 @@ def cleanup_old_files():
 def update_video_cache_loop():
     while True:
         for name, url in CHANNELS.items():
-            video_url = fetch_latest_video_url(name, url)
+            video_url, avatar_url = fetch_latest_video_url(name, url)
             if video_url:
                 VIDEO_CACHE[name]["url"] = video_url
                 VIDEO_CACHE[name]["last_checked"] = time.time()
+                VIDEO_CACHE[name]["avatar"] = avatar_url  # Store avatar URL
                 download_and_convert(name, video_url)
             time.sleep(random.randint(5, 10))
         time.sleep(REFRESH_INTERVAL)
@@ -91,16 +92,14 @@ def fetch_latest_video_url(name, channel_url):
         video_id = data["entries"][0]["id"]
         channel_id = data.get("channel_id", "")
 
-        # Set avatar
-        if channel_id:
-            avatar_url = f"https://yt3.googleusercontent.com/ytc/{channel_id}=s88-c-k-c0x00ffffff-no-rj"
-            VIDEO_CACHE[name]["avatar"] = avatar_url
-
+        # Set avatar URL
+        avatar_url = f"https://yt3.googleusercontent.com/ytc/{channel_id}=s88-c-k-c0x00ffffff-no-rj" if channel_id else ""
+        
         time.sleep(random.randint(5, 10))
-        return f"https://www.youtube.com/watch?v={video_id}"
+        return f"https://www.youtube.com/watch?v={video_id}", avatar_url
     except Exception as e:
         logging.error(f"Error fetching video from {channel_url}: {e}")
-        return None
+        return None, None
 
 def download_and_convert(channel, video_url):
     final_path = TMP_DIR / f"{channel}.mp3"
@@ -134,7 +133,7 @@ def stream_mp3(channel):
     if channel not in CHANNELS:
         return "Channel not found", 404
 
-    video_url = VIDEO_CACHE[channel].get("url") or fetch_latest_video_url(channel, CHANNELS[channel])
+    video_url = VIDEO_CACHE[channel].get("url") or fetch_latest_video_url(channel, CHANNELS[channel])[0]
     if not video_url:
         return "Unable to fetch video", 500
 
