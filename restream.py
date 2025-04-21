@@ -185,16 +185,17 @@ def index():
         return f.stat().st_mtime if f.exists() else 0
 
     for channel in sorted(CHANNELS, key=get_mtime, reverse=True):
-    mp3_path = TMP_DIR / f"{channel}.mp3"
-    if not mp3_path.exists():
-        continue
-    avatar = VIDEO_CACHE[channel].get("avatar", "")
-    if not avatar:
-        avatar = "https://via.placeholder.com/30?text=YT"
-    avatar_img = f'<img src="{avatar}" loading="lazy" style="height:30px; vertical-align:middle; margin-right:10px;">' if avatar else ""
-    html += f'<li style="margin-bottom:10px;">{avatar_img}<a href="/{channel}.mp3">{channel}</a> <small>({time.ctime(mp3_path.stat().st_mtime)})</small></li>'
-html += "</ul>"
-return html
+        mp3_path = TMP_DIR / f"{channel}.mp3"
+        if not mp3_path.exists():
+            continue
+        avatar = VIDEO_CACHE[channel].get("avatar", "")
+        if not avatar:
+            avatar = "https://via.placeholder.com/30?text=YT"
+        avatar_img = f'<img src="{avatar}" loading="lazy" style="height:30px; vertical-align:middle; margin-right:10px;">'
+        html += f'<li style="margin-bottom:10px;">{avatar_img}<a href="/{channel}.mp3">{channel}</a> <small>({time.ctime(mp3_path.stat().st_mtime)})</small></li>'
+
+    html += "</ul>"
+    return html
 
 # Start background threads
 threading.Thread(target=update_video_cache_loop, daemon=True).start()
