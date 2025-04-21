@@ -32,6 +32,8 @@ CHANNELS = {
     "comedy": "https://youtube.com/@malayalamcomedyscene5334/videos",
     "studyiq": "https://youtube.com/@studyiqiasenglish/videos",
     "vijayakumarblathur": "https://youtube.com/@vijayakumarblathur/videos",
+
+"entridegree": "https://youtube.com/@entridegreelevelexams/videos",
 }
 
 # Cache to store latest video info per channel
