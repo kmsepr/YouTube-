@@ -19,6 +19,8 @@ CHANNELS = {
     "bayyinah": "https://youtube.com/@bayyinah/videos",
     "zamzam": "https://youtube.com/@zamzamacademy/videos",
     "jrstudio": "https://youtube.com/@jrstudiomalayalam/videos",
+
+"raftalks": "https://youtube.com/@raftalksmalayalam/videos",
     "parvinder": "https://www.youtube.com/@pravindersheoran/videos",
     "vallathorukatha": "https://www.youtube.com/@babu_ramachandran/videos",
     "furqan": "https://youtube.com/@alfurqan4991/videos",
