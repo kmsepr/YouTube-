@@ -6,6 +6,7 @@ import logging
 import time
 import threading
 from pathlib import Path
+import random
 
 app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -19,7 +20,7 @@ EXPIRE_AGE = 10800            # 3 hours — how old files must be to delete
 CHANNELS = {
     "qasimi": "https://www.youtube.com/@quranstudycentremukkam/videos",
     "sharique": "https://www.youtube.com/@shariquesamsudheen/videos",
-    "drali": "https://youtube.com/@draligomaa/videos",
+    "drali": "https://www.youtube.com/@draligomaa/videos",
     "yaqeen": "https://youtube.com/@yaqeeninstituteofficial/videos",
     "talent": "https://youtube.com/@talentacademyonline/videos",
     "suprabhatam": "https://youtube.com/@suprabhaatham2023/videos",
@@ -68,6 +69,8 @@ def update_video_cache_loop():
                 VIDEO_CACHE[name]["last_checked"] = time.time()
                 # Proactively download and convert
                 download_and_convert(name, video_url)
+            # Random sleep to avoid rate-limiting (between 5-10 seconds)
+            time.sleep(random.randint(5, 10))
         time.sleep(REFRESH_INTERVAL)
 
 # Background pre-download of MP3s (every 30 mins)
@@ -81,6 +84,8 @@ def auto_download_mp3s():
                 if not mp3_path.exists() or time.time() - mp3_path.stat().st_mtime > RECHECK_INTERVAL:
                     logging.info(f"Pre-downloading {name}")
                     download_and_convert(name, video_url)
+            # Random sleep to avoid rate-limiting (between 5-10 seconds)
+            time.sleep(random.randint(5, 10))
         time.sleep(RECHECK_INTERVAL)
 
 def fetch_latest_video_url(channel_url):
@@ -91,6 +96,10 @@ def fetch_latest_video_url(channel_url):
         ], capture_output=True, text=True, check=True)
         data = json.loads(result.stdout)
         video_id = data["entries"][0]["id"]
+        
+        # Random delay to avoid rate-limiting (between 5-10 seconds)
+        time.sleep(random.randint(5, 10))
+        
         return f"https://www.youtube.com/watch?v={video_id}"
     except Exception as e:
         logging.error(f"Error fetching video: {e}")
@@ -98,6 +107,7 @@ def fetch_latest_video_url(channel_url):
 
 def download_and_convert(channel, video_url):
     final_path = TMP_DIR / f"{channel}.mp3"
+    temp_path = TMP_DIR / f"{channel}.mp3.part"
 
     if final_path.exists():
         return final_path
@@ -109,16 +119,17 @@ def download_and_convert(channel, video_url):
             "--extract-audio",
             "--audio-format", "mp3",
             "--audio-quality", "5",
-            "--output", str(final_path),
+            "--output", str(temp_path),
             "--cookies", "/mnt/data/cookies.txt",
             video_url
         ], check=True)
 
+        temp_path.rename(final_path)
         return final_path
     except Exception as e:
         logging.error(f"Error converting {channel}: {e}")
-        if final_path.exists():
-            final_path.unlink()
+        if temp_path.exists():
+            temp_path.unlink()
         return None
 
 @app.route("/<channel>.mp3")
