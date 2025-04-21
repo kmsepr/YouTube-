@@ -73,10 +73,11 @@ def fetch_latest_video_url(name, channel_url):
         ], capture_output=True, text=True, check=True)
 
         data = json.loads(result.stdout)
-        entry = data["entries"][0]
-        video_id = entry["id"]
-        thumbnail = entry.get("thumbnail", "")
-        return f"https://www.youtube.com/watch?v={video_id}", thumbnail
+        video = data["entries"][0]
+        video_id = video["id"]
+        # Use video thumbnail if available
+        thumbnail_url = video.get("thumbnail", "")
+        return f"https://www.youtube.com/watch?v={video_id}", thumbnail_url
     except Exception as e:
         logging.error(f"Error fetching video from {channel_url}: {e}")
         return None, None
