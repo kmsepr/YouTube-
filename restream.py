@@ -107,7 +107,7 @@ def fetch_latest_video_url(channel_url):
 
 def download_and_convert(channel, video_url):
     final_path = TMP_DIR / f"{channel}.mp3"
-    temp_path = TMP_DIR / f"{channel}.mp3.part"
+    yt_output = TMP_DIR / f"{channel}.mp3"
 
     if final_path.exists():
         return final_path
@@ -123,17 +123,18 @@ def download_and_convert(channel, video_url):
             "--extract-audio",
             "--audio-format", "mp3",
             "--audio-quality", "5",
-            "--output", str(temp_path),
+            "--output", str(yt_output),
             "--cookies", "/mnt/data/cookies.txt",
             video_url
         ], check=True)
 
-        temp_path.rename(final_path)
-        return final_path
+        return final_path if final_path.exists() else None
     except Exception as e:
         logging.error(f"Error converting {channel}: {e}")
-        if temp_path.exists():
-            temp_path.unlink()
+        # Cleanup partial
+        partial = final_path.with_suffix(".mp3.part")
+        if partial.exists():
+            partial.unlink()
         return None
 
 @app.route("/<channel>.mp3")
