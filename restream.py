@@ -10,6 +10,12 @@ from pathlib import Path
 app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 
+# Interval settings (hardcoded)
+REFRESH_INTERVAL = 900        # 15 minutes — fetch latest video URLs
+RECHECK_INTERVAL = 1800       # 30 minutes — re-download & convert if outdated
+CLEANUP_INTERVAL = 1800       # 30 minutes — cleanup old files
+EXPIRE_AGE = 10800            # 3 hours — how old files must be to delete
+
 CHANNELS = {
     "qasimi": "https://www.youtube.com/@quranstudycentremukkam/videos",
     "sharique": "https://www.youtube.com/@shariquesamsudheen/videos",
@@ -20,8 +26,7 @@ CHANNELS = {
     "bayyinah": "https://youtube.com/@bayyinah/videos",
     "zamzam": "https://youtube.com/@zamzamacademy/videos",
     "jrstudio": "https://youtube.com/@jrstudiomalayalam/videos",
-
-"raftalks": "https://youtube.com/@raftalksmalayalam/videos",
+    "raftalks": "https://youtube.com/@raftalksmalayalam/videos",
     "parvinder": "https://www.youtube.com/@pravindersheoran/videos",
     "vallathorukatha": "https://www.youtube.com/@babu_ramachandran/videos",
     "furqan": "https://youtube.com/@alfurqan4991/videos",
@@ -33,28 +38,27 @@ CHANNELS = {
     "comedy": "https://youtube.com/@malayalamcomedyscene5334/videos",
     "studyiq": "https://youtube.com/@studyiqiasenglish/videos",
     "vijayakumarblathur": "https://youtube.com/@vijayakumarblathur/videos",
-
-"entridegree": "https://youtube.com/@entridegreelevelexams/videos",
+    "entridegree": "https://youtube.com/@entridegreelevelexams/videos",
 }
 
 VIDEO_CACHE = {name: {"url": None, "last_checked": 0} for name in CHANNELS}
 TMP_DIR = Path("/tmp/ytmp3")
 TMP_DIR.mkdir(exist_ok=True)
 
-# Cleanup old files older than 2 hours
+# Cleanup old files older than EXPIRE_AGE (3 hours)
 def cleanup_old_files():
     while True:
         now = time.time()
         for f in TMP_DIR.glob("*.mp3"):
-            if now - f.stat().st_mtime > 10800:
+            if now - f.stat().st_mtime > EXPIRE_AGE:
                 try:
                     f.unlink()
                     logging.info(f"Deleted old file: {f}")
                 except Exception as e:
                     logging.warning(f"Could not delete {f}: {e}")
-        time.sleep(600)
+        time.sleep(CLEANUP_INTERVAL)
 
-# Periodic refresh of latest video URLs
+# Periodic refresh of latest video URLs (every 15 mins)
 def update_video_cache_loop():
     while True:
         for name, url in CHANNELS.items():
@@ -64,9 +68,9 @@ def update_video_cache_loop():
                 VIDEO_CACHE[name]["last_checked"] = time.time()
                 # Proactively download and convert
                 download_and_convert(name, video_url)
-        time.sleep(600)
+        time.sleep(REFRESH_INTERVAL)
 
-# Background pre-download of MP3s
+# Background pre-download of MP3s (every 30 mins)
 def auto_download_mp3s():
     while True:
         for name, data in VIDEO_CACHE.items():
@@ -74,10 +78,10 @@ def auto_download_mp3s():
             if video_url:
                 mp3_path = TMP_DIR / f"{name}.mp3"
                 # Skip if file exists and is recent
-                if not mp3_path.exists() or time.time() - mp3_path.stat().st_mtime > 1800:
+                if not mp3_path.exists() or time.time() - mp3_path.stat().st_mtime > RECHECK_INTERVAL:
                     logging.info(f"Pre-downloading {name}")
                     download_and_convert(name, video_url)
-        time.sleep(1800)
+        time.sleep(RECHECK_INTERVAL)
 
 def fetch_latest_video_url(channel_url):
     try:
@@ -181,4 +185,4 @@ threading.Thread(target=cleanup_old_files, daemon=True).start()
 threading.Thread(target=auto_download_mp3s, daemon=True).start()
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8000) 
+    app.run(host="0.0.0.0", port=8000)
