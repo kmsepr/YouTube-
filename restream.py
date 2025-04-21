@@ -12,8 +12,8 @@ app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 
 # Interval settings
-REFRESH_INTERVAL = 900        # 15 minutes
-RECHECK_INTERVAL = 1800       # 30 minutes
+REFRESH_INTERVAL = 1800       # 30 minutes
+RECHECK_INTERVAL = 3600       # 60 minutes
 CLEANUP_INTERVAL = 1800       # 30 minutes
 EXPIRE_AGE = 10800            # 3 hours
 
