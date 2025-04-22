@@ -206,7 +206,7 @@ def index():
         thumbnail = VIDEO_CACHE[channel].get("thumbnail", "")
         if not thumbnail:
             thumbnail = "https://via.placeholder.com/30?text=YT"
-        html += f'<li style="margin-bottom:10px;"><img src="{thumbnail}" loading="lazy" style="height:30px; vertical-align:middle; margin-right:10px;">' \
+        html += f'<li style="margin-bottom:10px;"><img src="{thumbnail}" loading="lazy" style="height:80px; width: 120px; object-fit: cover; vertical-align:middle; margin-right:10px;">' \
                 f'<a href="/{channel}.mp3">{channel}</a> <small>({time.ctime(mp3_path.stat().st_mtime)})</small></li>'
 
     html += "</ul>"
