@@ -20,7 +20,7 @@ EXPIRE_AGE = 10800            # 3 hours
 CHANNELS = {
     "qasimi": "https://www.youtube.com/@quranstudycentremukkam/videos",
     "sharique": "https://www.youtube.com/@shariquesamsudheen/videos",
-    "drali": "https://www.youtube.com/@draligomaa/videos",
+    "drali": "https://youtube.com/@draligomaa/videos",
     "yaqeen": "https://youtube.com/@yaqeeninstituteofficial/videos",
     "talent": "https://youtube.com/@talentacademyonline/videos",
     "suprabhatam": "https://youtube.com/@suprabhaatham2023/videos",
@@ -46,6 +46,9 @@ VIDEO_CACHE = {
     name: {"url": None, "last_checked": 0, "thumbnail": ""}
     for name in CHANNELS
 }
+
+LAST_VIDEO_ID = {name: None for name in CHANNELS}  # To track the last video ID for each channel
+
 TMP_DIR = Path("/tmp/ytmp3")
 TMP_DIR.mkdir(exist_ok=True)
 
@@ -77,10 +80,10 @@ def fetch_latest_video_url(name, channel_url):
         video_id = video["id"]
         # Use video thumbnail if available
         thumbnail_url = video.get("thumbnail", "")
-        return f"https://www.youtube.com/watch?v={video_id}", thumbnail_url
+        return f"https://www.youtube.com/watch?v={video_id}", thumbnail_url, video_id
     except Exception as e:
         logging.error(f"Error fetching video from {channel_url}: {e}")
-        return None, None
+        return None, None, None
 
 def download_and_convert(channel, video_url):
     final_path = TMP_DIR / f"{channel}.mp3"
@@ -111,12 +114,14 @@ def download_and_convert(channel, video_url):
 def update_video_cache_loop():
     while True:
         for name, url in CHANNELS.items():
-            video_url, thumbnail = fetch_latest_video_url(name, url)
-            if video_url:
-                VIDEO_CACHE[name]["url"] = video_url
-                VIDEO_CACHE[name]["last_checked"] = time.time()
-                VIDEO_CACHE[name]["thumbnail"] = thumbnail
-                download_and_convert(name, video_url)
+            video_url, thumbnail, video_id = fetch_latest_video_url(name, url)
+            if video_url and video_id:
+                if LAST_VIDEO_ID[name] != video_id:
+                    LAST_VIDEO_ID[name] = video_id
+                    VIDEO_CACHE[name]["url"] = video_url
+                    VIDEO_CACHE[name]["last_checked"] = time.time()
+                    VIDEO_CACHE[name]["thumbnail"] = thumbnail
+                    download_and_convert(name, video_url)
             time.sleep(random.randint(5, 10))
         time.sleep(REFRESH_INTERVAL)
 
@@ -139,12 +144,14 @@ def stream_mp3(channel):
 
     video_url = VIDEO_CACHE[channel].get("url")
     if not video_url:
-        video_url, thumbnail = fetch_latest_video_url(channel, CHANNELS[channel])
+        video_url, thumbnail, video_id = fetch_latest_video_url(channel, CHANNELS[channel])
         if not video_url:
             return "Unable to fetch video", 500
-        VIDEO_CACHE[channel]["url"] = video_url
-        VIDEO_CACHE[channel]["thumbnail"] = thumbnail
-        VIDEO_CACHE[channel]["last_checked"] = time.time()
+        if video_id and LAST_VIDEO_ID[channel] != video_id:
+            LAST_VIDEO_ID[channel] = video_id
+            VIDEO_CACHE[channel]["url"] = video_url
+            VIDEO_CACHE[channel]["thumbnail"] = thumbnail
+            VIDEO_CACHE[channel]["last_checked"] = time.time()
 
     mp3_path = download_and_convert(channel, video_url)
     if not mp3_path or not mp3_path.exists():
