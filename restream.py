@@ -41,7 +41,7 @@ CHANNELS = {
     "vijayakumarblathur": "https://youtube.com/@vijayakumarblathur/videos",
     "entridegree": "https://youtube.com/@entridegreelevelexams/videos",
 
-"maheen": "https://youtube.com/@hitchhikingnomaad/videos",)
+"maheen": "https://youtube.com/@hitchhikingnomaad/videos",
 }
 
 VIDEO_CACHE = {
