@@ -5,6 +5,7 @@ import subprocess
 import logging
 import threading
 import random
+import requests
 from flask import Flask, Response, request
 from pathlib import Path
 
@@ -37,6 +38,12 @@ LAST_VIDEO_ID = {name: None for name in CHANNELS}
 TMP_DIR = Path("/tmp/ytmp3")
 TMP_DIR.mkdir(exist_ok=True)
 
+# Fetch YouTube API key from environment variable
+YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY')
+
+if not YOUTUBE_API_KEY:
+    raise ValueError("YouTube API key is not set in the environment variables.")
+
 # Functions for fetching, downloading, and cleaning up files
 def cleanup_old_files():
     while True:
@@ -52,20 +59,26 @@ def cleanup_old_files():
 
 def fetch_latest_video_url(name, channel_url):
     try:
-        result = subprocess.run([
-            "yt-dlp",
-            "--dump-single-json",
-            "--playlist-end", "1",
-            "--cookies", "/mnt/data/cookies.txt",
-            "--user-agent", random.choice(USER_AGENTS),
-            channel_url
-        ], capture_output=True, text=True, check=True)
+        channel_id = channel_url.split("/@")[1]
+        
+        # Construct API request URL
+        url = f"https://www.googleapis.com/youtube/v3/search?key={YOUTUBE_API_KEY}&channelId={channel_id}&order=date&part=snippet&type=video"
+        
+        # Send request to the YouTube API
+        response = requests.get(url)
+        response.raise_for_status()
+        data = response.json()
 
-        data = json.loads(result.stdout)
-        video = data["entries"][0]
-        video_id = video["id"]
-        thumbnail_url = video.get("thumbnail", "")
-        return f"https://www.youtube.com/watch?v={video_id}", thumbnail_url, video_id
+        if 'items' not in data or len(data['items']) == 0:
+            raise ValueError("No videos found for the given channel.")
+
+        # Get the latest video details
+        video = data["items"][0]
+        video_id = video["id"]["videoId"]
+        thumbnail_url = video["snippet"].get("thumbnails", {}).get("high", {}).get("url", "")
+        video_url = f"https://www.youtube.com/watch?v={video_id}"
+
+        return video_url, thumbnail_url, video_id
     except Exception as e:
         logging.error(f"Error fetching video from {channel_url}: {e}")
         return None, None, None
