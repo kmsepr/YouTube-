@@ -181,10 +181,10 @@ def index():
     html = """
     <html>
     <head>
-        <title>Available Streams</title>
+        <title>YouTube Mp3</title>
     </head>
     <body style="font-family:sans-serif; font-size:12px; background:#fff;">
-        <h3>Available Streams</h3>
+        <h3>YouTube Mp3</h3>
     """
     
     def get_mtime(channel):
