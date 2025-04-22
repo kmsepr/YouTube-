@@ -15,7 +15,7 @@ logging.basicConfig(level=logging.INFO)
 REFRESH_INTERVAL = 300       # Every 5 minutes
 RECHECK_INTERVAL = 600       # Every 10 minutes
 CLEANUP_INTERVAL = 1200      # Every 20 minutes
-EXPIRE_AGE = 3600            # Keep files for 1 hour
+EXPIRE_AGE = 10800          # Keep files for 3 hour
 
 # User agent rotation
 USER_AGENTS = [
