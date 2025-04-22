@@ -193,7 +193,7 @@ def stream_mp3(channel):
 def index():
     files = list(TMP_DIR.glob("*.mp3"))
     links = [f'<li><a href="/{f.stem}.mp3">{f.stem}.mp3</a> (created: {time.ctime(f.stat().st_mtime)})</li>' for f in files]
-    return f"<h3>Available Streams</h3><ul>{''.join(links)}</ul>"
+    return f"<h3>YouTube mp3</h3><ul>{''.join(links)}</ul>"
 
 # Start background threads
 threading.Thread(target=update_video_cache_loop, daemon=True).start()
