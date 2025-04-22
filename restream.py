@@ -105,6 +105,17 @@ def download_and_convert(channel, video_url):
             partial.unlink()
         return None
 
+def cleanup_old_files():
+    """Remove old files that exceed the EXPIRE_AGE limit."""
+    current_time = time.time()
+    for file in TMP_DIR.glob("*.mp3"):
+        if current_time - file.stat().st_mtime > EXPIRE_AGE:
+            try:
+                logging.info(f"Cleaning up old file: {file}")
+                file.unlink()
+            except Exception as e:
+                logging.error(f"Error cleaning up file {file}: {e}")
+
 # Background threads for automatic updates
 def update_video_cache_loop():
     while True:
@@ -228,6 +239,7 @@ def index():
 # Start background threads
 threading.Thread(target=update_video_cache_loop, daemon=True).start()
 threading.Thread(target=auto_download_mp3s, daemon=True).start()
+threading.Thread(target=cleanup_old_files, daemon=True).start()
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8080)
