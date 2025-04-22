@@ -5,18 +5,17 @@ import subprocess
 import logging
 import threading
 import random
-import requests
 from flask import Flask, Response, request
 from pathlib import Path
 
 app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 
-# Constants
-REFRESH_INTERVAL = 1800      # 30 mins
-RECHECK_INTERVAL = 3600      # 1 hour
-CLEANUP_INTERVAL = 3600      # 1 hour
-EXPIRE_AGE = 36000           # 10 hours
+# Interval settings
+REFRESH_INTERVAL = 1800       # 30 minutes
+RECHECK_INTERVAL = 3600       # 60 minutes
+CLEANUP_INTERVAL = 1800       # 30 minutes
+EXPIRE_AGE = 10800            # 3 hours
 
 # User agent rotation
 USER_AGENTS = [
@@ -28,8 +27,8 @@ USER_AGENTS = [
 ]
 
 CHANNELS = {
-    "vijayakumarblathur": "https://youtube.com/@vijayakumarblathur",
-    "entridegree": "https://youtube.com/@entridegreelevelexams",
+    "vijayakumarblathur": "https://youtube.com/@vijayakumarblathur/videos",
+    "entridegree": "https://youtube.com/@entridegreelevelexams/videos",
     # Add other channels here
 }
 
@@ -37,12 +36,6 @@ VIDEO_CACHE = {name: {"url": None, "last_checked": 0, "thumbnail": ""} for name 
 LAST_VIDEO_ID = {name: None for name in CHANNELS}
 TMP_DIR = Path("/tmp/ytmp3")
 TMP_DIR.mkdir(exist_ok=True)
-
-# Fetch YouTube API key from environment variable
-YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY')
-
-if not YOUTUBE_API_KEY:
-    raise ValueError("YouTube API key is not set in the environment variables.")
 
 # Functions for fetching, downloading, and cleaning up files
 def cleanup_old_files():
@@ -59,27 +52,20 @@ def cleanup_old_files():
 
 def fetch_latest_video_url(name, channel_url):
     try:
-        # Extract channel username from URL
-        channel_username = channel_url.split("/@")[1]
+        result = subprocess.run([
+            "yt-dlp",
+            "--dump-single-json",
+            "--playlist-end", "1",
+            "--cookies", "/mnt/data/cookies.txt",
+            "--user-agent", random.choice(USER_AGENTS),
+            channel_url
+        ], capture_output=True, text=True, check=True)
 
-        # Construct API request URL using `forUsername`
-        url = f"https://www.googleapis.com/youtube/v3/search?key={YOUTUBE_API_KEY}&forUsername={channel_username}&order=date&part=snippet&type=video"
-
-        # Send request to the YouTube API
-        response = requests.get(url)
-        response.raise_for_status()
-        data = response.json()
-
-        if 'items' not in data or len(data['items']) == 0:
-            raise ValueError("No videos found for the given channel.")
-
-        # Get the latest video details
-        video = data["items"][0]
-        video_id = video["id"]["videoId"]
-        thumbnail_url = video["snippet"].get("thumbnails", {}).get("high", {}).get("url", "")
-        video_url = f"https://www.youtube.com/watch?v={video_id}"
-
-        return video_url, thumbnail_url, video_id
+        data = json.loads(result.stdout)
+        video = data["entries"][0]
+        video_id = video["id"]
+        thumbnail_url = video.get("thumbnail", "")
+        return f"https://www.youtube.com/watch?v={video_id}", thumbnail_url, video_id
     except Exception as e:
         logging.error(f"Error fetching video from {channel_url}: {e}")
         return None, None, None
@@ -200,7 +186,7 @@ def index():
     <body style="font-family:sans-serif; font-size:12px; background:#fff;">
         <h3>YouTube Mp3</h3>
     """
-
+    
     def get_mtime(channel):
         f = TMP_DIR / f"{channel}.mp3"
         return f.stat().st_mtime if f.exists() else 0
@@ -212,7 +198,7 @@ def index():
         thumbnail = VIDEO_CACHE[channel].get("thumbnail", "")
         if not thumbnail:
             thumbnail = "https://via.placeholder.com/120x80?text=YT"
-
+        
         html += f"""
         <div style="margin-bottom:12px; padding:6px; border:1px solid #ccc; border-radius:6px; width:160px;">
             <img src="{thumbnail}" loading="lazy" style="width:100%; height:auto; display:block; margin-bottom:4px;" alt="{channel}">
