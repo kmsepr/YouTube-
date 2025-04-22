@@ -13,19 +13,24 @@ logging.basicConfig(level=logging.INFO)
 
 # TEMP: Speed up for testing
 REFRESH_INTERVAL = 600       # Every 10 minute
-RECHECK_INTERVAL = 1200       # Every 20 minutes
+RECHECK_INTERVAL = 1200      # Every 20 minutes
 CLEANUP_INTERVAL = 1800      # Every 30 minutes
 EXPIRE_AGE = 7200            # Keep files for 2 hours
 
-CHANNELS = {
+# List of user agents to rotate
+USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+    "Mozilla/5.0 (Linux; Android 10; SM-G970F)",
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X)",
+    "Mozilla/5.0 (iPad; CPU OS 14_0 like Mac OS X)",
+]
 
+CHANNELS = {
     "vijayakumarblathur": "https://youtube.com/@vijayakumarblathur/videos",
     "entridegree": "https://youtube.com/@entridegreelevelexams/videos",
-
-"maheen": "https://youtube.com/@hitchhikingnomaad/videos",
-
-"entri": "https://youtube.com/@entriapp/videos",
-
+    "maheen": "https://youtube.com/@hitchhikingnomaad/videos",
+    "entri": "https://youtube.com/@entriapp/videos",
     "qasimi": "https://www.youtube.com/@quranstudycentremukkam/videos",
     "sharique": "https://www.youtube.com/@shariquesamsudheen/videos",
     "drali": "https://youtube.com/@draligomaa/videos",
@@ -46,7 +51,6 @@ CHANNELS = {
     "movieworld": "https://youtube.com/@movieworldmalayalammovies/videos",
     "comedy": "https://youtube.com/@malayalamcomedyscene5334/videos",
     "studyiq": "https://youtube.com/@studyiqiasenglish/videos",
-
 }
 
 VIDEO_CACHE = {
@@ -54,7 +58,7 @@ VIDEO_CACHE = {
     for name in CHANNELS
 }
 
-LAST_VIDEO_ID = {name: None for name in CHANNELS}  # To track the last video ID for each channel
+LAST_VIDEO_ID = {name: None for name in CHANNELS}
 
 TMP_DIR = Path("/tmp/ytmp3")
 TMP_DIR.mkdir(exist_ok=True)
@@ -78,14 +82,13 @@ def fetch_latest_video_url(name, channel_url):
             "--dump-single-json",
             "--playlist-end", "1",
             "--cookies", "/mnt/data/cookies.txt",
-            "--user-agent", "Mozilla/5.0",
+            "--user-agent", random.choice(USER_AGENTS),
             channel_url
         ], capture_output=True, text=True, check=True)
 
         data = json.loads(result.stdout)
         video = data["entries"][0]
         video_id = video["id"]
-        # Use video thumbnail if available
         thumbnail_url = video.get("thumbnail", "")
         return f"https://www.youtube.com/watch?v={video_id}", thumbnail_url, video_id
     except Exception as e:
@@ -104,7 +107,7 @@ def download_and_convert(channel, video_url):
             "-f", "bestaudio",
             "--output", str(TMP_DIR / f"{channel}.%(ext)s"),
             "--cookies", "/mnt/data/cookies.txt",
-            "--user-agent", "Mozilla/5.0",
+            "--user-agent", random.choice(USER_AGENTS),
             "--postprocessor-args", "-ar 22050 -ac 1 -b:a 40k",
             "--extract-audio",
             "--audio-format", "mp3",
