@@ -12,10 +12,10 @@ app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 
 # Interval settings
-REFRESH_INTERVAL = 1800       # 30 minutes
-RECHECK_INTERVAL = 3600       # 60 minutes
-CLEANUP_INTERVAL = 1800       # 30 minutes
-EXPIRE_AGE = 10800            # 3 hours
+REFRESH_INTERVAL = 1200       # 20 minutes (Moderate refresh frequency to prevent server overload)
+RECHECK_INTERVAL = 3600       # 60 minutes (Ensure freshness without overloading checks)
+CLEANUP_INTERVAL = 1800       # 30 minutes (Balanced cleanup interval)
+EXPIRE_AGE = 7200             # 2 hours (Retain files for 2 hours to ensure availability of content)
 
 # User agent rotation
 USER_AGENTS = [
