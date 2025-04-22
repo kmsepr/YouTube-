@@ -27,9 +27,33 @@ USER_AGENTS = [
 ]
 
 CHANNELS = {
+
+"maheen": "https://youtube.com/@hitchhikingnomaad/videos",
+    "entri": "https://youtube.com/@entriapp/videos",
+"zamzam": "https://youtube.com/@zamzamacademy/videos",
+    "jrstudio": "https://youtube.com/@jrstudiomalayalam/videos",
+    "raftalks": "https://youtube.com/@raftalksmalayalam/videos",
+    "parvinder": "https://www.youtube.com/@pravindersheoran/videos",
+    "qasimi": "https://www.youtube.com/@quranstudycentremukkam/videos",
+    "sharique": "https://www.youtube.com/@shariquesamsudheen/videos",
+    "drali": "https://youtube.com/@draligomaa/videos",
+    "yaqeen": "https://youtube.com/@yaqeeninstituteofficial/videos",
+    "talent": "https://youtube.com/@talentacademyonline/videos",
     "vijayakumarblathur": "https://youtube.com/@vijayakumarblathur/videos",
     "entridegree": "https://youtube.com/@entridegreelevelexams/videos",
-    # Add other channels here
+    
+    "suprabhatam": "https://youtube.com/@suprabhaatham2023/videos",
+    "bayyinah": "https://youtube.com/@bayyinah/videos",
+    
+    "vallathorukatha": "https://www.youtube.com/@babu_ramachandran/videos",
+    "furqan": "https://youtube.com/@alfurqan4991/videos",
+    "skicr": "https://youtube.com/@skicrtv/videos",
+    "dhruvrathee": "https://youtube.com/@dhruvrathee/videos",
+    "safari": "https://youtube.com/@safaritvlive/videos",
+    "sunnxt": "https://youtube.com/@sunnxtmalayalam/videos",
+    "movieworld": "https://youtube.com/@movieworldmalayalammovies/videos",
+    "comedy": "https://youtube.com/@malayalamcomedyscene5334/videos",
+    "studyiq": "https://youtube.com/@studyiqiasenglish/videos",
 }
 
 VIDEO_CACHE = {name: {"url": None, "last_checked": 0, "thumbnail": "", "upload_date": ""} for name in CHANNELS}
