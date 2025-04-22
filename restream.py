@@ -18,6 +18,14 @@ CLEANUP_INTERVAL = 300       # Every 5 minutes
 EXPIRE_AGE = 1800            # Keep files for 30 minutes
 
 CHANNELS = {
+
+    "vijayakumarblathur": "https://youtube.com/@vijayakumarblathur/videos",
+    "entridegree": "https://youtube.com/@entridegreelevelexams/videos",
+
+"maheen": "https://youtube.com/@hitchhikingnomaad/videos",
+
+"entri": "https://youtube.com/@entriapp/videos",
+
     "qasimi": "https://www.youtube.com/@quranstudycentremukkam/videos",
     "sharique": "https://www.youtube.com/@shariquesamsudheen/videos",
     "drali": "https://youtube.com/@draligomaa/videos",
@@ -38,10 +46,7 @@ CHANNELS = {
     "movieworld": "https://youtube.com/@movieworldmalayalammovies/videos",
     "comedy": "https://youtube.com/@malayalamcomedyscene5334/videos",
     "studyiq": "https://youtube.com/@studyiqiasenglish/videos",
-    "vijayakumarblathur": "https://youtube.com/@vijayakumarblathur/videos",
-    "entridegree": "https://youtube.com/@entridegreelevelexams/videos",
 
-"maheen": "https://youtube.com/@hitchhikingnomaad/videos",
 }
 
 VIDEO_CACHE = {
