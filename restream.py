@@ -1,23 +1,23 @@
-from flask import Flask, Response, request
-import subprocess
-import json
 import os
-import logging
 import time
+import json
+import subprocess
+import logging
 import threading
-from pathlib import Path
 import random
+from flask import Flask, Response, request
+from pathlib import Path
 
 app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 
-# TEMP: Speed up for testing
-REFRESH_INTERVAL = 600       # Every 10 minute
+# Constants
+REFRESH_INTERVAL = 600       # Every 10 minutes
 RECHECK_INTERVAL = 1200      # Every 20 minutes
 CLEANUP_INTERVAL = 1800      # Every 30 minutes
 EXPIRE_AGE = 7200            # Keep files for 2 hours
 
-# List of user agents to rotate
+# User agent rotation
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
@@ -53,16 +53,12 @@ CHANNELS = {
     "studyiq": "https://youtube.com/@studyiqiasenglish/videos",
 }
 
-VIDEO_CACHE = {
-    name: {"url": None, "last_checked": 0, "thumbnail": ""}
-    for name in CHANNELS
-}
-
+VIDEO_CACHE = {name: {"url": None, "last_checked": 0, "thumbnail": ""} for name in CHANNELS}
 LAST_VIDEO_ID = {name: None for name in CHANNELS}
-
 TMP_DIR = Path("/tmp/ytmp3")
 TMP_DIR.mkdir(exist_ok=True)
 
+# Functions for fetching, downloading, and cleaning up files
 def cleanup_old_files():
     while True:
         now = time.time()
@@ -121,6 +117,7 @@ def download_and_convert(channel, video_url):
             partial.unlink()
         return None
 
+# Background threads for automatic updates
 def update_video_cache_loop():
     while True:
         for name, url in CHANNELS.items():
@@ -147,6 +144,7 @@ def auto_download_mp3s():
             time.sleep(random.randint(5, 10))
         time.sleep(RECHECK_INTERVAL)
 
+# Routes
 @app.route("/<channel>.mp3")
 def stream_mp3(channel):
     if channel not in CHANNELS:
@@ -201,8 +199,15 @@ def stream_mp3(channel):
 
 @app.route("/")
 def index():
-    html = "<h3>Available Streams</h3><ul>"
-
+    html = """
+    <html>
+    <head>
+        <title>Available Streams</title>
+    </head>
+    <body style="font-family:sans-serif; font-size:12px; background:#fff;">
+        <h3>Available Streams</h3>
+    """
+    
     def get_mtime(channel):
         f = TMP_DIR / f"{channel}.mp3"
         return f.stat().st_mtime if f.exists() else 0
@@ -213,11 +218,19 @@ def index():
             continue
         thumbnail = VIDEO_CACHE[channel].get("thumbnail", "")
         if not thumbnail:
-            thumbnail = "https://via.placeholder.com/30?text=YT"
-        html += f'<li style="margin-bottom:10px;"><img src="{thumbnail}" loading="lazy" style="height:80px; width: 120px; object-fit: cover; vertical-align:middle; margin-right:10px;">' \
-                f'<a href="/{channel}.mp3">{channel}</a> <small>({time.ctime(mp3_path.stat().st_mtime)})</small></li>'
+            thumbnail = "https://via.placeholder.com/120x80?text=YT"
+        
+        html += f"""
+        <div style="margin-bottom:12px; padding:6px; border:1px solid #ccc; border-radius:6px; width:160px;">
+            <img src="{thumbnail}" loading="lazy" style="width:100%; height:auto; display:block; margin-bottom:4px;" alt="{channel}">
+            <div style="text-align:center;">
+                <a href="/{channel}.mp3" style="color:#000; text-decoration:none;">{channel}</a><br>
+                <small>{time.ctime(mp3_path.stat().st_mtime)}</small>
+            </div>
+        </div>
+        """
 
-    html += "</ul>"
+    html += "</body></html>"
     return html
 
 # Start background threads
