@@ -40,6 +40,8 @@ CHANNELS = {
     "studyiq": "https://youtube.com/@studyiqiasenglish/videos",
     "vijayakumarblathur": "https://youtube.com/@vijayakumarblathur/videos",
     "entridegree": "https://youtube.com/@entridegreelevelexams/videos",
+
+"maheen": "https://youtube.com/@hitchhikingnomaad/videos",)
 }
 
 VIDEO_CACHE = {
