@@ -14,7 +14,6 @@ logging.basicConfig(level=logging.INFO)
 # Interval settings
 REFRESH_INTERVAL = 1200       # 20 minutes (Moderate refresh frequency to prevent server overload)
 RECHECK_INTERVAL = 3600       # 60 minutes (Ensure freshness without overloading checks)
-CLEANUP_INTERVAL = 1800       # 30 minutes (Balanced cleanup interval)
 EXPIRE_AGE = 7200             # 2 hours (Retain files for 2 hours to ensure availability of content)
 
 # User agent rotation
@@ -27,24 +26,21 @@ USER_AGENTS = [
 ]
 
 CHANNELS = {
-
-"maheen": "https://youtube.com/@hitchhikingnomaad/videos",
+    "maheen": "https://youtube.com/@hitchhikingnomaad/videos",
     "entri": "https://youtube.com/@entriapp/videos",
-"zamzam": "https://youtube.com/@zamzamacademy/videos",
+    "zamzam": "https://youtube.com/@zamzamacademy/videos",
     "jrstudio": "https://youtube.com/@jrstudiomalayalam/videos",
     "raftalks": "https://youtube.com/@raftalksmalayalam/videos",
     "parvinder": "https://www.youtube.com/@pravindersheoran/videos",
     "qasimi": "https://www.youtube.com/@quranstudycentremukkam/videos",
-    "sharique": "https://www.youtube.com/@shariquesamsudheen/videos",
+    "sharique": "https://youtube.com/@shariquesamsudheen/videos",
     "drali": "https://youtube.com/@draligomaa/videos",
     "yaqeen": "https://youtube.com/@yaqeeninstituteofficial/videos",
     "talent": "https://youtube.com/@talentacademyonline/videos",
     "vijayakumarblathur": "https://youtube.com/@vijayakumarblathur/videos",
     "entridegree": "https://youtube.com/@entridegreelevelexams/videos",
-    
     "suprabhatam": "https://youtube.com/@suprabhaatham2023/videos",
     "bayyinah": "https://youtube.com/@bayyinah/videos",
-    
     "vallathorukatha": "https://www.youtube.com/@babu_ramachandran/videos",
     "furqan": "https://youtube.com/@alfurqan4991/videos",
     "skicr": "https://youtube.com/@skicrtv/videos",
@@ -61,19 +57,7 @@ LAST_VIDEO_ID = {name: None for name in CHANNELS}
 TMP_DIR = Path("/tmp/ytmp3")
 TMP_DIR.mkdir(exist_ok=True)
 
-# Functions for fetching, downloading, and cleaning up files
-def cleanup_old_files():
-    while True:
-        now = time.time()
-        for f in TMP_DIR.glob("*.mp3"):
-            if now - f.stat().st_mtime > EXPIRE_AGE:
-                try:
-                    f.unlink()
-                    logging.info(f"Deleted old file: {f}")
-                except Exception as e:
-                    logging.warning(f"Could not delete {f}: {e}")
-        time.sleep(CLEANUP_INTERVAL)
-
+# Functions for fetching, downloading, and converting files
 def fetch_latest_video_url(name, channel_url):
     try:
         result = subprocess.run([
@@ -243,8 +227,7 @@ def index():
 
 # Start background threads
 threading.Thread(target=update_video_cache_loop, daemon=True).start()
-threading.Thread(target=cleanup_old_files, daemon=True).start()
 threading.Thread(target=auto_download_mp3s, daemon=True).start()
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8000)
+    app.run(host="0.0.0.0", port=8080)
