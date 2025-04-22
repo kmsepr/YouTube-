@@ -15,7 +15,7 @@ logging.basicConfig(level=logging.INFO)
 REFRESH_INTERVAL = 900        # 15 minutes — fetch latest video URLs
 RECHECK_INTERVAL = 1800       # 30 minutes — re-download & convert if outdated
 CLEANUP_INTERVAL = 1800       # 30 minutes — cleanup old files
-EXPIRE_AGE = 10800            # 3 hours — how old files must be to delete
+EXPIRE_AGE = 36000           # 3 hours — how old files must be to delete
 
 CHANNELS = {
     "vijayakumarblathur": "https://youtube.com/@vijayakumarblathur/videos",
