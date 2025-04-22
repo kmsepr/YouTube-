@@ -12,10 +12,10 @@ app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 
 # TEMP: Speed up for testing
-REFRESH_INTERVAL = 60        # Every 1 minute
-RECHECK_INTERVAL = 120       # Every 2 minutes
-CLEANUP_INTERVAL = 300       # Every 5 minutes
-EXPIRE_AGE = 1800            # Keep files for 30 minutes
+REFRESH_INTERVAL = 600       # Every 10 minute
+RECHECK_INTERVAL = 1200       # Every 20 minutes
+CLEANUP_INTERVAL = 1800      # Every 30 minutes
+EXPIRE_AGE = 7200            # Keep files for 2 hours
 
 CHANNELS = {
 
