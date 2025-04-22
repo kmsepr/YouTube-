@@ -11,11 +11,11 @@ import random
 app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 
-# Interval settings
-REFRESH_INTERVAL = 1800       # 30 minutes
-RECHECK_INTERVAL = 3600       # 60 minutes
-CLEANUP_INTERVAL = 1800       # 30 minutes
-EXPIRE_AGE = 10800            # 3 hours
+# TEMP: Speed up for testing
+REFRESH_INTERVAL = 60        # Every 1 minute
+RECHECK_INTERVAL = 120       # Every 2 minutes
+CLEANUP_INTERVAL = 300       # Every 5 minutes
+EXPIRE_AGE = 1800            # Keep files for 30 minutes
 
 CHANNELS = {
     "qasimi": "https://www.youtube.com/@quranstudycentremukkam/videos",
