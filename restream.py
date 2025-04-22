@@ -28,8 +28,8 @@ USER_AGENTS = [
 ]
 
 CHANNELS = {
-    "vijayakumarblathur": "https://youtube.com/@vijayakumarblathur/videos",
-    "entridegree": "https://youtube.com/@entridegreelevelexams/videos",
+    "vijayakumarblathur": "https://youtube.com/@vijayakumarblathur",
+    "entridegree": "https://youtube.com/@entridegreelevelexams",
     # Add other channels here
 }
 
@@ -59,11 +59,12 @@ def cleanup_old_files():
 
 def fetch_latest_video_url(name, channel_url):
     try:
-        channel_id = channel_url.split("/@")[1]
-        
+        # Extract channel username from URL
+        channel_username = channel_url.split("/@")[1]
+
         # Construct API request URL
-        url = f"https://www.googleapis.com/youtube/v3/search?key={YOUTUBE_API_KEY}&channelId={channel_id}&order=date&part=snippet&type=video"
-        
+        url = f"https://www.googleapis.com/youtube/v3/search?key={YOUTUBE_API_KEY}&channelId={channel_username}&order=date&part=snippet&type=video"
+
         # Send request to the YouTube API
         response = requests.get(url)
         response.raise_for_status()
