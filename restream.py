@@ -32,7 +32,7 @@ CHANNELS = {
     # Add other channels here
 }
 
-VIDEO_CACHE = {name: {"url": None, "last_checked": 0, "thumbnail": ""} for name in CHANNELS}
+VIDEO_CACHE = {name: {"url": None, "last_checked": 0, "thumbnail": "", "upload_date": ""} for name in CHANNELS}
 LAST_VIDEO_ID = {name: None for name in CHANNELS}
 TMP_DIR = Path("/tmp/ytmp3")
 TMP_DIR.mkdir(exist_ok=True)
@@ -65,10 +65,11 @@ def fetch_latest_video_url(name, channel_url):
         video = data["entries"][0]
         video_id = video["id"]
         thumbnail_url = video.get("thumbnail", "")
-        return f"https://www.youtube.com/watch?v={video_id}", thumbnail_url, video_id
+        upload_date = video.get("upload_date", "")  # This is the key for the upload date
+        return f"https://www.youtube.com/watch?v={video_id}", thumbnail_url, video_id, upload_date
     except Exception as e:
         logging.error(f"Error fetching video from {channel_url}: {e}")
-        return None, None, None
+        return None, None, None, None
 
 def download_and_convert(channel, video_url):
     final_path = TMP_DIR / f"{channel}.mp3"
@@ -100,13 +101,14 @@ def download_and_convert(channel, video_url):
 def update_video_cache_loop():
     while True:
         for name, url in CHANNELS.items():
-            video_url, thumbnail, video_id = fetch_latest_video_url(name, url)
+            video_url, thumbnail, video_id, upload_date = fetch_latest_video_url(name, url)
             if video_url and video_id:
                 if LAST_VIDEO_ID[name] != video_id:
                     LAST_VIDEO_ID[name] = video_id
                     VIDEO_CACHE[name]["url"] = video_url
                     VIDEO_CACHE[name]["last_checked"] = time.time()
                     VIDEO_CACHE[name]["thumbnail"] = thumbnail
+                    VIDEO_CACHE[name]["upload_date"] = upload_date  # Store the upload date
                     download_and_convert(name, video_url)
             time.sleep(random.randint(5, 10))
         time.sleep(REFRESH_INTERVAL)
@@ -130,14 +132,16 @@ def stream_mp3(channel):
         return "Channel not found", 404
 
     video_url = VIDEO_CACHE[channel].get("url")
+    upload_date = VIDEO_CACHE[channel].get("upload_date")  # Get upload date from cache
     if not video_url:
-        video_url, thumbnail, video_id = fetch_latest_video_url(channel, CHANNELS[channel])
+        video_url, thumbnail, video_id, upload_date = fetch_latest_video_url(channel, CHANNELS[channel])
         if not video_url:
             return "Unable to fetch video", 500
         if video_id and LAST_VIDEO_ID[channel] != video_id:
             LAST_VIDEO_ID[channel] = video_id
             VIDEO_CACHE[channel]["url"] = video_url
             VIDEO_CACHE[channel]["thumbnail"] = thumbnail
+            VIDEO_CACHE[channel]["upload_date"] = upload_date  # Store upload date
             VIDEO_CACHE[channel]["last_checked"] = time.time()
 
     mp3_path = download_and_convert(channel, video_url)
@@ -187,11 +191,10 @@ def index():
         <h3>YouTube Mp3</h3>
     """
     
-    def get_mtime(channel):
-        f = TMP_DIR / f"{channel}.mp3"
-        return f.stat().st_mtime if f.exists() else 0
+    def get_upload_date(channel):
+        return VIDEO_CACHE[channel].get("upload_date", "Unknown upload date")
 
-    for channel in sorted(CHANNELS, key=get_mtime, reverse=True):
+    for channel in sorted(CHANNELS, key=lambda x: get_upload_date(x), reverse=True):
         mp3_path = TMP_DIR / f"{channel}.mp3"
         if not mp3_path.exists():
             continue
@@ -199,12 +202,14 @@ def index():
         if not thumbnail:
             thumbnail = "https://via.placeholder.com/120x80?text=YT"
         
+        upload_date = get_upload_date(channel)
+        
         html += f"""
         <div style="margin-bottom:12px; padding:6px; border:1px solid #ccc; border-radius:6px; width:160px;">
             <img src="{thumbnail}" loading="lazy" style="width:100%; height:auto; display:block; margin-bottom:4px;" alt="{channel}">
             <div style="text-align:center;">
                 <a href="/{channel}.mp3" style="color:#000; text-decoration:none;">{channel}</a><br>
-                <small>{time.ctime(mp3_path.stat().st_mtime)}</small>
+                <small>{upload_date}</small>
             </div>
         </div>
         """
