@@ -12,10 +12,10 @@ app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 
 # Constants
-REFRESH_INTERVAL = 300       # Every 5 minutes
-RECHECK_INTERVAL = 600       # Every 10 minutes
-CLEANUP_INTERVAL = 1200      # Every 20 minutes
-EXPIRE_AGE = 10800          # Keep files for 3 hour
+REFRESH_INTERVAL =   900    # Every 15 minutes
+RECHECK_INTERVAL = 1800     # Every 30 minutes
+CLEANUP_INTERVAL = 3600      # Every 1 hours
+EXPIRE_AGE = 10800           # Keep files for 3 hours
 
 # User agent rotation
 USER_AGENTS = [
@@ -29,28 +29,7 @@ USER_AGENTS = [
 CHANNELS = {
     "vijayakumarblathur": "https://youtube.com/@vijayakumarblathur/videos",
     "entridegree": "https://youtube.com/@entridegreelevelexams/videos",
-    "maheen": "https://youtube.com/@hitchhikingnomaad/videos",
-    "entri": "https://youtube.com/@entriapp/videos",
-    "qasimi": "https://www.youtube.com/@quranstudycentremukkam/videos",
-    "sharique": "https://www.youtube.com/@shariquesamsudheen/videos",
-    "drali": "https://youtube.com/@draligomaa/videos",
-    "yaqeen": "https://youtube.com/@yaqeeninstituteofficial/videos",
-    "talent": "https://youtube.com/@talentacademyonline/videos",
-    "suprabhatam": "https://youtube.com/@suprabhaatham2023/videos",
-    "bayyinah": "https://youtube.com/@bayyinah/videos",
-    "zamzam": "https://youtube.com/@zamzamacademy/videos",
-    "jrstudio": "https://youtube.com/@jrstudiomalayalam/videos",
-    "raftalks": "https://youtube.com/@raftalksmalayalam/videos",
-    "parvinder": "https://www.youtube.com/@pravindersheoran/videos",
-    "vallathorukatha": "https://www.youtube.com/@babu_ramachandran/videos",
-    "furqan": "https://youtube.com/@alfurqan4991/videos",
-    "skicr": "https://youtube.com/@skicrtv/videos",
-    "dhruvrathee": "https://youtube.com/@dhruvrathee/videos",
-    "safari": "https://youtube.com/@safaritvlive/videos",
-    "sunnxt": "https://youtube.com/@sunnxtmalayalam/videos",
-    "movieworld": "https://youtube.com/@movieworldmalayalammovies/videos",
-    "comedy": "https://youtube.com/@malayalamcomedyscene5334/videos",
-    "studyiq": "https://youtube.com/@studyiqiasenglish/videos",
+    # Add other channels here
 }
 
 VIDEO_CACHE = {name: {"url": None, "last_checked": 0, "thumbnail": ""} for name in CHANNELS}
@@ -204,10 +183,10 @@ def index():
     <head>
         <title>Available Streams</title>
     </head>
-    <body style="font-family:sans-serif; font-size:12px; background:#fff; padding:5px; margin:0;">
-        <h3 style="text-align:center;">Available Streams</h3>
+    <body style="font-family:sans-serif; font-size:12px; background:#fff;">
+        <h3>Available Streams</h3>
     """
-
+    
     def get_mtime(channel):
         f = TMP_DIR / f"{channel}.mp3"
         return f.stat().st_mtime if f.exists() else 0
@@ -218,15 +197,14 @@ def index():
             continue
         thumbnail = VIDEO_CACHE[channel].get("thumbnail", "")
         if not thumbnail:
-            thumbnail = "https://via.placeholder.com/80x60?text=YT"  # Smaller placeholder
+            thumbnail = "https://via.placeholder.com/120x80?text=YT"
         
-        # Building the HTML for each channel
         html += f"""
-        <div style="margin-bottom:10px; padding:5px; border:1px solid #ccc; border-radius:6px; width:100%; max-width:160px; margin-left:auto; margin-right:auto; text-align:center;">
-            <img src="{thumbnail}" loading="lazy" style="width:80px; height:60px; object-fit:cover; display:block; margin-bottom:4px;" alt="{channel}">
-            <div>
-                <a href="/{channel}.mp3" style="color:#000; text-decoration:none; font-size:12px; display:block;">{channel}</a>
-                <small style="font-size:10px; color:#555;">{time.ctime(mp3_path.stat().st_mtime)}</small>
+        <div style="margin-bottom:12px; padding:6px; border:1px solid #ccc; border-radius:6px; width:160px;">
+            <img src="{thumbnail}" loading="lazy" style="width:100%; height:auto; display:block; margin-bottom:4px;" alt="{channel}">
+            <div style="text-align:center;">
+                <a href="/{channel}.mp3" style="color:#000; text-decoration:none;">{channel}</a><br>
+                <small>{time.ctime(mp3_path.stat().st_mtime)}</small>
             </div>
         </div>
         """
