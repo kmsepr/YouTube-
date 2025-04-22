@@ -62,8 +62,8 @@ def fetch_latest_video_url(name, channel_url):
         # Extract channel username from URL
         channel_username = channel_url.split("/@")[1]
 
-        # Construct API request URL
-        url = f"https://www.googleapis.com/youtube/v3/search?key={YOUTUBE_API_KEY}&channelId={channel_username}&order=date&part=snippet&type=video"
+        # Construct API request URL using `forUsername`
+        url = f"https://www.googleapis.com/youtube/v3/search?key={YOUTUBE_API_KEY}&forUsername={channel_username}&order=date&part=snippet&type=video"
 
         # Send request to the YouTube API
         response = requests.get(url)
@@ -200,7 +200,7 @@ def index():
     <body style="font-family:sans-serif; font-size:12px; background:#fff;">
         <h3>YouTube Mp3</h3>
     """
-    
+
     def get_mtime(channel):
         f = TMP_DIR / f"{channel}.mp3"
         return f.stat().st_mtime if f.exists() else 0
@@ -212,7 +212,7 @@ def index():
         thumbnail = VIDEO_CACHE[channel].get("thumbnail", "")
         if not thumbnail:
             thumbnail = "https://via.placeholder.com/120x80?text=YT"
-        
+
         html += f"""
         <div style="margin-bottom:12px; padding:6px; border:1px solid #ccc; border-radius:6px; width:160px;">
             <img src="{thumbnail}" loading="lazy" style="width:100%; height:auto; display:block; margin-bottom:4px;" alt="{channel}">
