@@ -4,7 +4,6 @@ import json
 import subprocess
 import logging
 import threading
-import random
 from flask import Flask, Response, request
 from pathlib import Path
 
@@ -12,18 +11,12 @@ app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 
 # Interval settings
-REFRESH_INTERVAL = 1200       # 20 minutes (Moderate refresh frequency to prevent server overload)
-RECHECK_INTERVAL = 3600       # 60 minutes (Ensure freshness without overloading checks)
-EXPIRE_AGE = 7200             # 2 hours (Retain files for 2 hours to ensure availability of content)
+REFRESH_INTERVAL = 1200       # 20 minutes
+RECHECK_INTERVAL = 3600       # 60 minutes
+EXPIRE_AGE = 7200             # 2 hours
 
-# User agent rotation
-USER_AGENTS = [
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
-    "Mozilla/5.0 (Linux; Android 10; SM-G970F)",
-    "Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X)",
-    "Mozilla/5.0 (iPad; CPU OS 14_0 like Mac OS X)",
-]
+# Fixed user agent
+FIXED_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
 
 CHANNELS = {
     "maheen": "https://youtube.com/@hitchhikingnomaad/videos",
@@ -57,7 +50,6 @@ LAST_VIDEO_ID = {name: None for name in CHANNELS}
 TMP_DIR = Path("/tmp/ytmp3")
 TMP_DIR.mkdir(exist_ok=True)
 
-# Functions for fetching, downloading, and converting files
 def fetch_latest_video_url(name, channel_url):
     try:
         result = subprocess.run([
@@ -65,7 +57,7 @@ def fetch_latest_video_url(name, channel_url):
             "--dump-single-json",
             "--playlist-end", "1",
             "--cookies", "/mnt/data/cookies.txt",
-            "--user-agent", random.choice(USER_AGENTS),
+            "--user-agent", FIXED_USER_AGENT,
             channel_url
         ], capture_output=True, text=True, check=True)
 
@@ -73,7 +65,7 @@ def fetch_latest_video_url(name, channel_url):
         video = data["entries"][0]
         video_id = video["id"]
         thumbnail_url = video.get("thumbnail", "")
-        upload_date = video.get("upload_date", "")  # This is the key for the upload date
+        upload_date = video.get("upload_date", "")
         return f"https://www.youtube.com/watch?v={video_id}", thumbnail_url, video_id, upload_date
     except Exception as e:
         logging.error(f"Error fetching video from {channel_url}: {e}")
@@ -91,7 +83,7 @@ def download_and_convert(channel, video_url):
             "-f", "bestaudio",
             "--output", str(TMP_DIR / f"{channel}.%(ext)s"),
             "--cookies", "/mnt/data/cookies.txt",
-            "--user-agent", random.choice(USER_AGENTS),
+            "--user-agent", FIXED_USER_AGENT,
             "--postprocessor-args", "-ar 22050 -ac 1 -b:a 40k",
             "--extract-audio",
             "--audio-format", "mp3",
@@ -106,17 +98,17 @@ def download_and_convert(channel, video_url):
         return None
 
 def cleanup_old_files():
-    """Remove old files that exceed the EXPIRE_AGE limit."""
-    current_time = time.time()
-    for file in TMP_DIR.glob("*.mp3"):
-        if current_time - file.stat().st_mtime > EXPIRE_AGE:
-            try:
-                logging.info(f"Cleaning up old file: {file}")
-                file.unlink()
-            except Exception as e:
-                logging.error(f"Error cleaning up file {file}: {e}")
+    while True:
+        current_time = time.time()
+        for file in TMP_DIR.glob("*.mp3"):
+            if current_time - file.stat().st_mtime > EXPIRE_AGE:
+                try:
+                    logging.info(f"Cleaning up old file: {file}")
+                    file.unlink()
+                except Exception as e:
+                    logging.error(f"Error cleaning up file {file}: {e}")
+        time.sleep(EXPIRE_AGE)
 
-# Background threads for automatic updates
 def update_video_cache_loop():
     while True:
         for name, url in CHANNELS.items():
@@ -127,9 +119,9 @@ def update_video_cache_loop():
                     VIDEO_CACHE[name]["url"] = video_url
                     VIDEO_CACHE[name]["last_checked"] = time.time()
                     VIDEO_CACHE[name]["thumbnail"] = thumbnail
-                    VIDEO_CACHE[name]["upload_date"] = upload_date  # Store the upload date
+                    VIDEO_CACHE[name]["upload_date"] = upload_date
                     download_and_convert(name, video_url)
-            time.sleep(random.randint(5, 10))
+            time.sleep(3)
         time.sleep(REFRESH_INTERVAL)
 
 def auto_download_mp3s():
@@ -141,17 +133,16 @@ def auto_download_mp3s():
                 if not mp3_path.exists() or time.time() - mp3_path.stat().st_mtime > RECHECK_INTERVAL:
                     logging.info(f"Pre-downloading {name}")
                     download_and_convert(name, video_url)
-            time.sleep(random.randint(5, 10))
+            time.sleep(3)
         time.sleep(RECHECK_INTERVAL)
 
-# Routes
 @app.route("/<channel>.mp3")
 def stream_mp3(channel):
     if channel not in CHANNELS:
         return "Channel not found", 404
 
     video_url = VIDEO_CACHE[channel].get("url")
-    upload_date = VIDEO_CACHE[channel].get("upload_date")  # Get upload date from cache
+    upload_date = VIDEO_CACHE[channel].get("upload_date")
     if not video_url:
         video_url, thumbnail, video_id, upload_date = fetch_latest_video_url(channel, CHANNELS[channel])
         if not video_url:
@@ -160,7 +151,7 @@ def stream_mp3(channel):
             LAST_VIDEO_ID[channel] = video_id
             VIDEO_CACHE[channel]["url"] = video_url
             VIDEO_CACHE[channel]["thumbnail"] = thumbnail
-            VIDEO_CACHE[channel]["upload_date"] = upload_date  # Store upload date
+            VIDEO_CACHE[channel]["upload_date"] = upload_date
             VIDEO_CACHE[channel]["last_checked"] = time.time()
 
     mp3_path = download_and_convert(channel, video_url)
@@ -202,27 +193,19 @@ def stream_mp3(channel):
 @app.route("/")
 def index():
     html = """
-    <html>
-    <head>
-        <title>YouTube Mp3</title>
-    </head>
+    <html><head><title>YouTube Mp3</title></head>
     <body style="font-family:sans-serif; font-size:12px; background:#fff;">
-        <h3>YouTube Mp3</h3>
+    <h3>YouTube Mp3</h3>
     """
-    
     def get_upload_date(channel):
-        return VIDEO_CACHE[channel].get("upload_date", "Unknown upload date")
+        return VIDEO_CACHE[channel].get("upload_date", "Unknown")
 
     for channel in sorted(CHANNELS, key=lambda x: get_upload_date(x), reverse=True):
         mp3_path = TMP_DIR / f"{channel}.mp3"
         if not mp3_path.exists():
             continue
-        thumbnail = VIDEO_CACHE[channel].get("thumbnail", "")
-        if not thumbnail:
-            thumbnail = "https://via.placeholder.com/120x80?text=YT"
-        
+        thumbnail = VIDEO_CACHE[channel].get("thumbnail", "") or "https://via.placeholder.com/120x80?text=YT"
         upload_date = get_upload_date(channel)
-        
         html += f"""
         <div style="margin-bottom:12px; padding:6px; border:1px solid #ccc; border-radius:6px; width:160px;">
             <img src="{thumbnail}" loading="lazy" style="width:100%; height:auto; display:block; margin-bottom:4px;" alt="{channel}">
@@ -232,11 +215,10 @@ def index():
             </div>
         </div>
         """
-
     html += "</body></html>"
     return html
 
-# Start background threads
+# Start background tasks
 threading.Thread(target=update_video_cache_loop, daemon=True).start()
 threading.Thread(target=auto_download_mp3s, daemon=True).start()
 threading.Thread(target=cleanup_old_files, daemon=True).start()
