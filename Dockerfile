@@ -19,11 +19,11 @@ COPY . /app
 # Install Python dependencies from requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Create a persistent storage path (Koyeb will mount this at runtime)
-VOLUME /mnt/data
-
 # Expose port 8000 for the Flask application
 EXPOSE 8000
+
+# Create a persistent storage path (Koyeb will mount this at runtime)
+VOLUME /mnt/data
 
 # Command to run the app
 CMD ["python", "restream.py"]
