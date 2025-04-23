@@ -1,4 +1,5 @@
 import os
+import time
 import logging
 import subprocess
 from flask import Flask, request, Response, redirect
@@ -128,33 +129,38 @@ def download():
         if not Path(cookies_path).exists():
             return "Cookies file not found", 400
 
-        try:
-            if fmt == "mp3":
-                cmd = [
-                    "yt-dlp", "-f", "bestaudio",
-                    "--output", str(TMP_DIR / f"{video_id}_{title}.%(ext)s"),
-                    "--user-agent", FIXED_USER_AGENT,
-                    "--postprocessor-args", "-ar 22050 -ac 1 -b:a 40k",
-                    "--extract-audio", "--audio-format", "mp3",
-                    "--cookies", cookies_path, url
-                ]
-            else:
-                cmd = [
-                    "yt-dlp", "-f", "best[ext=mp4]",
-                    "--output", str(TMP_DIR / f"{video_id}_{title}.%(ext)s"),
-                    "--user-agent", FIXED_USER_AGENT,
-                    "--cookies", cookies_path,
-                    "--recode-video", "mp4",
-                    "--postprocessor-args", "-vf scale=320:240 -r 15 -b:v 384k -b:a 12k",
-                    url
-                ]
-            subprocess.run(cmd, check=True)
-        except subprocess.CalledProcessError as e:
-            logging.error(f"Download failed: {e}")
-            return "Download failed", 500
+        base_cmd = [
+            "yt-dlp",
+            "--output", str(TMP_DIR / f"{video_id}_{title}.%(ext)s"),
+            "--user-agent", FIXED_USER_AGENT,
+            "--cookies", cookies_path,
+            url
+        ]
 
-    if not file_path.exists():
-        return "File not available", 500
+        if fmt == "mp3":
+            cmd = base_cmd[:1] + ["-f", "bestaudio"] + base_cmd[1:] + [
+                "--postprocessor-args", "-ar 22050 -ac 1 -b:a 40k",
+                "--extract-audio", "--audio-format", "mp3"
+            ]
+        else:
+            cmd = base_cmd[:1] + ["-f", "best[ext=mp4]"] + base_cmd[1:] + [
+                "--recode-video", "mp4",
+                "--postprocessor-args", "-vf scale=320:240 -r 15 -b:v 384k -b:a 12k"
+            ]
+
+        success = False
+        for attempt in range(3):
+            try:
+                logging.debug(f"Attempt {attempt + 1}: running yt-dlp...")
+                subprocess.run(cmd, check=True)
+                success = True
+                break
+            except subprocess.CalledProcessError as e:
+                logging.warning(f"Attempt {attempt + 1} failed: {e}")
+                time.sleep(10)
+
+        if not success or not file_path.exists():
+            return "Download failed after retries", 500
 
     def generate():
         with open(file_path, "rb") as f:
