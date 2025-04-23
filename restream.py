@@ -1,38 +1,51 @@
 import os
+import time
+import json
 import logging
 import subprocess
-import json
 from flask import Flask, request, Response, redirect
 from pathlib import Path
 from urllib.parse import quote_plus
 import requests
 
 app = Flask(__name__)
-TMP_DIR = Path("/tmp/ytmp3")
-TMP_DIR.mkdir(exist_ok=True)
+TMP_DIR = Path("/mnt/data/ytmp3")  # Persistent storage
+TMP_DIR.mkdir(parents=True, exist_ok=True)
 
-TITLE_CACHE_FILE = TMP_DIR / "title_cache.json"
-TITLE_CACHE = {}
-
+CACHE_TTL = 6 * 3600  # 6 hours
+TITLE_CACHE_FILE = TMP_DIR / "titles.json"
 FIXED_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
 YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY")
-
 logging.basicConfig(level=logging.DEBUG)
 
 # Load title cache
 if TITLE_CACHE_FILE.exists():
     with open(TITLE_CACHE_FILE, "r") as f:
         TITLE_CACHE = json.load(f)
+else:
+    TITLE_CACHE = {}
 
 def save_title_cache():
     with open(TITLE_CACHE_FILE, "w") as f:
         json.dump(TITLE_CACHE, f)
+
+def clean_old_files():
+    now = time.time()
+    for f in TMP_DIR.glob("*.mp3"):
+        if now - f.stat().st_mtime > CACHE_TTL:
+            try:
+                f.unlink()
+                TITLE_CACHE.pop(f.stem, None)
+            except Exception as e:
+                logging.error(f"Failed to delete {f}: {e}")
+    save_title_cache()
 
 def get_cached_files():
     return [f for f in TMP_DIR.glob("*.mp3")]
 
 @app.route("/")
 def index():
+    clean_old_files()
     search_html = """<form method='get' action='/search'>
     <input type='text' name='q' placeholder='Search YouTube...'>
     <input type='submit' value='Search'></form><br>"""
@@ -44,7 +57,7 @@ def index():
         cached_html += f"""
         <div style='margin-bottom:10px;'>
             <img src='https://i.ytimg.com/vi/{video_id}/mqdefault.jpg' width='120'><br>
-            <b>{title}</b><br>
+            {title}<br>
             <a href='/download?q={video_id}'>Download MP3</a>
         </div>
         """
@@ -81,11 +94,11 @@ def search():
         video_id = item["id"]["videoId"]
         title = item["snippet"]["title"]
         thumbnail = item["snippet"]["thumbnails"]["medium"]["url"]
-        TITLE_CACHE[video_id] = title  # Save to cache
+        TITLE_CACHE[video_id] = title
         html += f"""
         <div style='margin-bottom:10px;'>
             <img src='{thumbnail}' width='120'><br>
-            <b>{title}</b><br>
+            {title}<br>
             <a href='/download?q={quote_plus(video_id)}'>Download MP3</a>
         </div>
         """
@@ -103,27 +116,24 @@ def download():
     if not mp3_path.exists():
         url = f"https://www.youtube.com/watch?v={video_id}"
         cookies_path = "/mnt/data/cookies.txt"
-        logging.debug(f"Using cookies from: {cookies_path}")
 
         if not Path(cookies_path).exists():
-            logging.error(f"Cookies file does not exist at {cookies_path}")
-            return "Cookies file not found.", 400
+            logging.error("Cookies file not found")
+            return "Cookies file not found", 400
 
         try:
             subprocess.run([
                 "yt-dlp", "-f", "bestaudio",
                 "--output", str(TMP_DIR / f"{video_id}.%(ext)s"),
-                "--extract-audio",
-                "--audio-format", "mp3",
-                "--audio-quality", "5",
-                "--no-playlist", "-N", "4",
                 "--user-agent", FIXED_USER_AGENT,
+                "--postprocessor-args", "-ar 22050 -ac 1 -b:a 40k",
+                "--extract-audio", "--audio-format", "mp3",
                 "--cookies", cookies_path,
                 url
             ], check=True)
         except subprocess.CalledProcessError as e:
             logging.error(f"Download failed: {e}")
-            return "Failed to download", 500
+            return "Download failed", 500
 
     if not mp3_path.exists():
         return "File not available", 500
