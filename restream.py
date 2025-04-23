@@ -1,7 +1,7 @@
 import os
 import logging
 import subprocess
-from flask import Flask, request, Response
+from flask import Flask, request, Response, redirect
 from pathlib import Path
 from urllib.parse import quote_plus
 import requests
@@ -13,7 +13,6 @@ TMP_DIR.mkdir(exist_ok=True)
 FIXED_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
 YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY")
 
-# Set up logging for debugging purposes
 logging.basicConfig(level=logging.DEBUG)
 
 def get_cached_files():
@@ -21,12 +20,9 @@ def get_cached_files():
 
 @app.route("/")
 def index():
-    search_html = """
-    <form method='get' action='/search'>
-        <input type='text' name='q' placeholder='Search YouTube...'>
-        <input type='submit' value='Search'>
-    </form><br>
-    """
+    search_html = """<form method='get' action='/search'>
+    <input type='text' name='q' placeholder='Search YouTube...'>
+    <input type='submit' value='Search'></form><br>"""
 
     cached_html = "<h3>Cached MP3s</h3>"
     for file in get_cached_files():
@@ -37,7 +33,6 @@ def index():
             <a href='/download?q={video_id}'>{video_id}</a>
         </div>
         """
-
     return f"<html><body style='font-family:sans-serif;'>{search_html}{cached_html}</body></html>"
 
 @app.route("/search")
@@ -46,7 +41,7 @@ def search():
     if not query:
         return redirect("/")
 
-    url = f"https://www.googleapis.com/youtube/v3/search"
+    url = "https://www.googleapis.com/youtube/v3/search"
     params = {
         "key": YOUTUBE_API_KEY,
         "q": query,
@@ -64,8 +59,7 @@ def search():
     <form method='get' action='/search'>
         <input type='text' name='q' value='{query}' placeholder='Search YouTube'>
         <input type='submit' value='Search'>
-    </form><br>
-    <h3>Search results for '{query}'</h3>
+    </form><br><h3>Search results for '{query}'</h3>
     """
 
     for item in results:
@@ -91,8 +85,7 @@ def download():
     mp3_path = TMP_DIR / f"{video_id}.mp3"
     if not mp3_path.exists():
         url = f"https://www.youtube.com/watch?v={video_id}"
-
-        cookies_path = "/mnt/data/cookies.txt"  # Path to your cookies.txt file
+        cookies_path = "/mnt/data/cookies.txt"
         logging.debug(f"Using cookies from: {cookies_path}")
 
         if not Path(cookies_path).exists():
@@ -107,12 +100,12 @@ def download():
                 "--postprocessor-args", "-ar 22050 -ac 1 -b:a 40k",
                 "--extract-audio",
                 "--audio-format", "mp3",
-                "--cookies", cookies_path,  # Add the cookies option
+                "--cookies", cookies_path,
                 url
             ], check=True)
-        except Exception as e:
-            logging.error(f"Download error: {e}")
-            return f"Download error: {e}", 500
+        except subprocess.CalledProcessError as e:
+            logging.error(f"Download failed: {e}")
+            return "Failed to download", 500
 
     if not mp3_path.exists():
         return "File not available", 500
