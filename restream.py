@@ -1,10 +1,11 @@
-import os
-import json
+import html
+import time
+import requests
 import subprocess
-from flask import Flask, request, Response
+from flask import Flask, request, Response, redirect
 from pathlib import Path
 from urllib.parse import quote_plus
-import requests
+import os
 
 app = Flask(__name__)
 TMP_DIR = Path("/tmp/ytmp3")
@@ -12,12 +13,23 @@ TMP_DIR.mkdir(exist_ok=True)
 
 FIXED_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
 YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY")
+CACHE_TTL = 3600  # Cache cleanup in 1 hour
+
+def clean_old_files():
+    now = time.time()
+    for f in TMP_DIR.glob("*.*"):
+        if f.is_file() and now - f.stat().st_mtime > CACHE_TTL:
+            try:
+                f.unlink()
+            except Exception:
+                pass
 
 def get_cached_files():
-    return [f for f in TMP_DIR.glob("*.mp3")]
+    return sorted(TMP_DIR.glob("*.mp3"), key=lambda f: f.stat().st_mtime, reverse=True)
 
 @app.route("/")
 def index():
+    clean_old_files()
     search_html = """
     <form method='get' action='/search'>
         <input type='text' name='q' placeholder='Search YouTube...'>
@@ -52,17 +64,23 @@ def search():
         "maxResults": 5
     }
 
-    r = requests.get(url, params=params)
-    results = r.json().get("items", [])
+    try:
+        r = requests.get(url, params=params)
+        r.raise_for_status()  # Raise exception for HTTP error responses
+        results = r.json().get("items", [])
+    except requests.exceptions.RequestException as e:
+        return f"<h3>Error accessing YouTube API: {e}</h3>", 500
+    except Exception as e:
+        return f"<h3>Unexpected error: {e}</h3>", 500
 
     html = f"""
-    <html><head><title>Search results for '{query}'</title></head>
+    <html><head><title>Search results for '{html.escape(query)}'</title></head>
     <body style='font-family:sans-serif;'>
     <form method='get' action='/search'>
-        <input type='text' name='q' value='{query}' placeholder='Search YouTube'>
+        <input type='text' name='q' value='{html.escape(query)}' placeholder='Search YouTube'>
         <input type='submit' value='Search'>
     </form><br>
-    <h3>Search results for '{query}'</h3>
+    <h3>Search results for '{html.escape(query)}'</h3>
     """
 
     for item in results:
@@ -72,8 +90,9 @@ def search():
         html += f"""
         <div style='margin-bottom:10px;'>
             <img src='{thumbnail}' width='120'><br>
-            {title}<br>
-            <a href='/download?q={quote_plus(video_id)}'>Download MP3</a>
+            {html.escape(title)}<br>
+            <a href='/download?q={quote_plus(video_id)}'>Download MP3</a> |
+            <a href='/download_mp4?q={quote_plus(video_id)}'>Download MP4</a>
         </div>
         """
     html += "</body></html>"
@@ -109,6 +128,33 @@ def download():
             yield from f
 
     return Response(generate(), mimetype="audio/mpeg")
+
+@app.route("/download_mp4")
+def download_mp4():
+    video_id = request.args.get("q")
+    if not video_id:
+        return "Missing video ID", 400
+
+    mp4_path = TMP_DIR / f"{video_id}.mp4"
+    if not mp4_path.exists():
+        url = f"https://www.youtube.com/watch?v={video_id}"
+        try:
+            subprocess.run([
+                "yt-dlp", "-f", "18",  # format 18 = 360p MP4
+                "--output", str(mp4_path),
+                "--user-agent", FIXED_USER_AGENT,
+            ], check=True)
+        except Exception as e:
+            return f"Download error: {e}", 500
+
+    if not mp4_path.exists():
+        return "File not available", 500
+
+    def generate():
+        with open(mp4_path, "rb") as f:
+            yield from f
+
+    return Response(generate(), mimetype="video/mp4")
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000)
