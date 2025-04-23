@@ -1,63 +1,41 @@
 import os
 import json
 import subprocess
+from flask import Flask, request, Response
 from pathlib import Path
 from urllib.parse import quote_plus
-from flask import Flask, request, Response
+import requests
 
 app = Flask(__name__)
 TMP_DIR = Path("/tmp/ytmp3")
 TMP_DIR.mkdir(exist_ok=True)
 
-TITLE_CACHE_PATH = TMP_DIR / "titles.json"
-THUMBNAIL_CACHE_PATH = TMP_DIR / "thumbs.json"
-VIDEO_CACHE = {}
-THUMBNAIL_CACHE = {}
-
-# Load caches
-if TITLE_CACHE_PATH.exists():
-    try:
-        VIDEO_CACHE.update(json.loads(TITLE_CACHE_PATH.read_text()))
-    except:
-        pass
-
-if THUMBNAIL_CACHE_PATH.exists():
-    try:
-        THUMBNAIL_CACHE.update(json.loads(THUMBNAIL_CACHE_PATH.read_text()))
-    except:
-        pass
-
 FIXED_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY")
 
-def save_metadata(video_id, title, thumb):
-    VIDEO_CACHE[video_id] = title
-    THUMBNAIL_CACHE[video_id] = thumb
-    TITLE_CACHE_PATH.write_text(json.dumps(VIDEO_CACHE))
-    THUMBNAIL_CACHE_PATH.write_text(json.dumps(THUMBNAIL_CACHE))
+def get_cached_files():
+    return [f for f in TMP_DIR.glob("*.mp3")]
 
 @app.route("/")
 def index():
-    html = """
-    <html><head><title>YouTube MP3</title></head>
-    <body style='font-family:sans-serif;'>
-    <h3>YouTube MP3 Search</h3>
+    search_html = """
     <form method='get' action='/search'>
         <input type='text' name='q' placeholder='Search YouTube...'>
         <input type='submit' value='Search'>
-    </form><hr>
-    <h4>Cached MP3s</h4>
+    </form><br>
     """
-    for video_id, title in VIDEO_CACHE.items():
-        thumb = THUMBNAIL_CACHE.get(video_id, "")
-        html += f"""
+
+    cached_html = "<h3>Cached MP3s</h3>"
+    for file in get_cached_files():
+        video_id = file.stem
+        cached_html += f"""
         <div style='margin-bottom:10px;'>
-            <img src='{thumb}' width='120'><br>
-            <b>{title}</b><br>
-            <a href='/download?q={video_id}'>Download/Stream MP3</a>
+            <img src='https://i.ytimg.com/vi/{video_id}/mqdefault.jpg' width='120'><br>
+            <a href='/download?q={video_id}'>{video_id}</a>
         </div>
         """
-    html += "</body></html>"
-    return html
+
+    return f"<html><body style='font-family:sans-serif;'>{search_html}{cached_html}</body></html>"
 
 @app.route("/search")
 def search():
@@ -65,19 +43,17 @@ def search():
     if not query:
         return redirect("/")
 
-    cmd = [
-        "yt-dlp", "ytsearch5:" + query,
-        "--dump-json",
-        "--cookies", "/mnt/data/cookies.txt",
-        "--user-agent", FIXED_USER_AGENT
-    ]
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
-        if result.returncode != 0:
-            raise RuntimeError(result.stderr)
-        entries = [json.loads(line) for line in result.stdout.strip().splitlines() if line.strip()]
-    except Exception as e:
-        return f"<h3>Search failed</h3><pre>{e}</pre><br><a href='/'>Go Home</a>", 500
+    url = f"https://www.googleapis.com/youtube/v3/search"
+    params = {
+        "key": YOUTUBE_API_KEY,
+        "q": query,
+        "part": "snippet",
+        "type": "video",
+        "maxResults": 5
+    }
+
+    r = requests.get(url, params=params)
+    results = r.json().get("items", [])
 
     html = f"""
     <html><head><title>Search results for '{query}'</title></head>
@@ -85,14 +61,14 @@ def search():
     <form method='get' action='/search'>
         <input type='text' name='q' value='{query}' placeholder='Search YouTube'>
         <input type='submit' value='Search'>
-    </form><hr>
-    <h3>Search results for '{query}'</h3><br>
+    </form><br>
+    <h3>Search results for '{query}'</h3>
     """
 
-    for entry in entries:
-        video_id = entry.get("id")
-        title = entry.get("title")
-        thumbnail = entry.get("thumbnail")
+    for item in results:
+        video_id = item["id"]["videoId"]
+        title = item["snippet"]["title"]
+        thumbnail = item["snippet"]["thumbnails"]["medium"]["url"]
         html += f"""
         <div style='margin-bottom:10px;'>
             <img src='{thumbnail}' width='120'><br>
@@ -100,7 +76,6 @@ def search():
             <a href='/download?q={quote_plus(video_id)}'>Download MP3</a>
         </div>
         """
-
     html += "</body></html>"
     return html
 
@@ -117,7 +92,6 @@ def download():
             subprocess.run([
                 "yt-dlp", "-f", "bestaudio",
                 "--output", str(TMP_DIR / f"{video_id}.%(ext)s"),
-                "--cookies", "/mnt/data/cookies.txt",
                 "--user-agent", FIXED_USER_AGENT,
                 "--postprocessor-args", "-ar 22050 -ac 1 -b:a 40k",
                 "--extract-audio",
@@ -129,18 +103,6 @@ def download():
 
     if not mp3_path.exists():
         return "File not available", 500
-
-    # Add to cache
-    if video_id not in VIDEO_CACHE:
-        try:
-            info = subprocess.run([
-                "yt-dlp", "-j", "--cookies", "/mnt/data/cookies.txt",
-                f"https://www.youtube.com/watch?v={video_id}"
-            ], capture_output=True, text=True, check=True)
-            data = json.loads(info.stdout)
-            save_metadata(video_id, data.get("title", video_id), data.get("thumbnail", ""))
-        except:
-            save_metadata(video_id, video_id, "")
 
     def generate():
         with open(mp3_path, "rb") as f:
