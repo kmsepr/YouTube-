@@ -3,27 +3,37 @@ import json
 import subprocess
 from pathlib import Path
 from urllib.parse import quote_plus
-from flask import Flask, request, Response, redirect
+from flask import Flask, request, Response
 
 app = Flask(__name__)
 TMP_DIR = Path("/tmp/ytmp3")
 TMP_DIR.mkdir(exist_ok=True)
 
 TITLE_CACHE_PATH = TMP_DIR / "titles.json"
+THUMBNAIL_CACHE_PATH = TMP_DIR / "thumbs.json"
 VIDEO_CACHE = {}
+THUMBNAIL_CACHE = {}
 
-# Load cache
+# Load caches
 if TITLE_CACHE_PATH.exists():
     try:
         VIDEO_CACHE.update(json.loads(TITLE_CACHE_PATH.read_text()))
     except:
         pass
 
+if THUMBNAIL_CACHE_PATH.exists():
+    try:
+        THUMBNAIL_CACHE.update(json.loads(THUMBNAIL_CACHE_PATH.read_text()))
+    except:
+        pass
+
 FIXED_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
 
-def save_title(video_id, title):
+def save_metadata(video_id, title, thumb):
     VIDEO_CACHE[video_id] = title
+    THUMBNAIL_CACHE[video_id] = thumb
     TITLE_CACHE_PATH.write_text(json.dumps(VIDEO_CACHE))
+    THUMBNAIL_CACHE_PATH.write_text(json.dumps(THUMBNAIL_CACHE))
 
 @app.route("/")
 def index():
@@ -35,11 +45,13 @@ def index():
         <input type='text' name='q' placeholder='Search YouTube...'>
         <input type='submit' value='Search'>
     </form><hr>
-    <h4>Downloaded MP3s</h4>
+    <h4>Cached MP3s</h4>
     """
     for video_id, title in VIDEO_CACHE.items():
+        thumb = THUMBNAIL_CACHE.get(video_id, "")
         html += f"""
         <div style='margin-bottom:10px;'>
+            <img src='{thumb}' width='120'><br>
             <b>{title}</b><br>
             <a href='/download?q={video_id}'>Download/Stream MP3</a>
         </div>
@@ -51,7 +63,7 @@ def index():
 def search():
     query = request.args.get("q", "").strip()
     if not query:
-        return "<h3>Enter a search query</h3>", 400
+        return redirect("/")
 
     cmd = [
         "yt-dlp", "ytsearch5:" + query,
@@ -70,11 +82,11 @@ def search():
     html = f"""
     <html><head><title>Search results for '{query}'</title></head>
     <body style='font-family:sans-serif;'>
-    <h3>Search results for '{query}'</h3>
     <form method='get' action='/search'>
         <input type='text' name='q' value='{query}' placeholder='Search YouTube'>
         <input type='submit' value='Search'>
-    </form><br>
+    </form><hr>
+    <h3>Search results for '{query}'</h3><br>
     """
 
     for entry in entries:
@@ -118,7 +130,7 @@ def download():
     if not mp3_path.exists():
         return "File not available", 500
 
-    # Add to title cache if not already
+    # Add to cache
     if video_id not in VIDEO_CACHE:
         try:
             info = subprocess.run([
@@ -126,9 +138,9 @@ def download():
                 f"https://www.youtube.com/watch?v={video_id}"
             ], capture_output=True, text=True, check=True)
             data = json.loads(info.stdout)
-            save_title(video_id, data.get("title", video_id))
+            save_metadata(video_id, data.get("title", video_id), data.get("thumbnail", ""))
         except:
-            save_title(video_id, video_id)
+            save_metadata(video_id, video_id, "")
 
     def generate():
         with open(mp3_path, "rb") as f:
