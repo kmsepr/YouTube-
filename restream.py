@@ -1,57 +1,52 @@
 import os
-import time
 import json
 import subprocess
-import logging
-import threading
-from flask import Flask, Response, request, redirect
 from pathlib import Path
 from urllib.parse import quote_plus
+from flask import Flask, request, Response, redirect
 
 app = Flask(__name__)
-logging.basicConfig(level=logging.INFO)
-
-REFRESH_INTERVAL = 1200        # 20 minutes
-RECHECK_INTERVAL = 3600        # 1 hour
-EXPIRE_AGE = 7200              # 2 hours
-FIXED_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
-
 TMP_DIR = Path("/tmp/ytmp3")
 TMP_DIR.mkdir(exist_ok=True)
 
+TITLE_CACHE_PATH = TMP_DIR / "titles.json"
 VIDEO_CACHE = {}
-LAST_VIDEO_ID = {}
 
-# --- Cleanup old files thread ---
-def cleanup_old_files():
-    while True:
-        now = time.time()
-        for file in TMP_DIR.glob("*.mp3"):
-            if now - file.stat().st_mtime > EXPIRE_AGE:
-                try:
-                    logging.info(f"Removing expired file: {file}")
-                    file.unlink()
-                except Exception as e:
-                    logging.error(f"Error deleting file: {file} - {e}")
-        time.sleep(300)  # Check every 5 minutes
+# Load cache
+if TITLE_CACHE_PATH.exists():
+    try:
+        VIDEO_CACHE.update(json.loads(TITLE_CACHE_PATH.read_text()))
+    except:
+        pass
 
-# --- Homepage: List cached MP3s ---
+FIXED_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+
+def save_title(video_id, title):
+    VIDEO_CACHE[video_id] = title
+    TITLE_CACHE_PATH.write_text(json.dumps(VIDEO_CACHE))
+
 @app.route("/")
 def index():
-    mp3s = list(TMP_DIR.glob("*.mp3"))
-    html = """<html><head><title>YouTube MP3</title></head>
+    html = """
+    <html><head><title>YouTube MP3</title></head>
     <body style='font-family:sans-serif;'>
-    <h3>Cached MP3s</h3><ul>"""
-    for mp3 in sorted(mp3s, key=lambda f: f.stat().st_mtime, reverse=True):
-        vid = mp3.stem
-        title = VIDEO_CACHE.get(vid, vid)
-        html += f"<li>{title} - <a href='/download?q={quote_plus(vid)}'>Play</a></li>"
-    html += "</ul><hr><h3>Search YouTube</h3><form method='get' action='/search'>"
-    html += "<input type='text' name='q' placeholder='Search YouTube...'>"
-    html += "<input type='submit' value='Search'></form></body></html>"
+    <h3>YouTube MP3 Search</h3>
+    <form method='get' action='/search'>
+        <input type='text' name='q' placeholder='Search YouTube...'>
+        <input type='submit' value='Search'>
+    </form><hr>
+    <h4>Downloaded MP3s</h4>
+    """
+    for video_id, title in VIDEO_CACHE.items():
+        html += f"""
+        <div style='margin-bottom:10px;'>
+            <b>{title}</b><br>
+            <a href='/download?q={video_id}'>Download/Stream MP3</a>
+        </div>
+        """
+    html += "</body></html>"
     return html
 
-# --- Search YouTube ---
 @app.route("/search")
 def search():
     query = request.args.get("q", "").strip()
@@ -59,27 +54,33 @@ def search():
         return "<h3>Enter a search query</h3>", 400
 
     cmd = [
-        "yt-dlp", f"ytsearch5:{query}", "--dump-json",
+        "yt-dlp", "ytsearch5:" + query,
+        "--dump-json",
         "--cookies", "/mnt/data/cookies.txt",
         "--user-agent", FIXED_USER_AGENT
     ]
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
+        if result.returncode != 0:
+            raise RuntimeError(result.stderr)
         entries = [json.loads(line) for line in result.stdout.strip().splitlines() if line.strip()]
     except Exception as e:
-        logging.error(f"Search error: {e}")
-        return f"<h3>Error performing search</h3>{e}", 500
+        return f"<h3>Search failed</h3><pre>{e}</pre><br><a href='/'>Go Home</a>", 500
 
-    html = f"<html><head><title>Search: {query}</title></head><body style='font-family:sans-serif;'>"
-    html += f"<h3>Search results for '{query}'</h3>"
-    html += "<form method='get' action='/search'><input type='text' name='q' value='{}'>".format(query)
-    html += "<input type='submit' value='Search'></form><br>"
+    html = f"""
+    <html><head><title>Search results for '{query}'</title></head>
+    <body style='font-family:sans-serif;'>
+    <h3>Search results for '{query}'</h3>
+    <form method='get' action='/search'>
+        <input type='text' name='q' value='{query}' placeholder='Search YouTube'>
+        <input type='submit' value='Search'>
+    </form><br>
+    """
 
     for entry in entries:
         video_id = entry.get("id")
         title = entry.get("title")
         thumbnail = entry.get("thumbnail")
-        VIDEO_CACHE[video_id] = title  # Cache title
         html += f"""
         <div style='margin-bottom:10px;'>
             <img src='{thumbnail}' width='120'><br>
@@ -87,10 +88,10 @@ def search():
             <a href='/download?q={quote_plus(video_id)}'>Download MP3</a>
         </div>
         """
+
     html += "</body></html>"
     return html
 
-# --- Download & Serve MP3 ---
 @app.route("/download")
 def download():
     video_id = request.args.get("q")
@@ -117,15 +118,23 @@ def download():
     if not mp3_path.exists():
         return "File not available", 500
 
+    # Add to title cache if not already
+    if video_id not in VIDEO_CACHE:
+        try:
+            info = subprocess.run([
+                "yt-dlp", "-j", "--cookies", "/mnt/data/cookies.txt",
+                f"https://www.youtube.com/watch?v={video_id}"
+            ], capture_output=True, text=True, check=True)
+            data = json.loads(info.stdout)
+            save_title(video_id, data.get("title", video_id))
+        except:
+            save_title(video_id, video_id)
+
     def generate():
         with open(mp3_path, "rb") as f:
             yield from f
 
     return Response(generate(), mimetype="audio/mpeg")
 
-# --- Start Cleanup Thread ---
-threading.Thread(target=cleanup_old_files, daemon=True).start()
-
-# --- Run Server ---
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000)
