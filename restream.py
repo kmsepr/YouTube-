@@ -7,6 +7,7 @@ from pathlib import Path
 from urllib.parse import quote_plus
 import requests
 import json
+from unidecode import unidecode
 
 app = Flask(__name__)
 TMP_DIR = Path("/mnt/data/ytmp3")
@@ -27,7 +28,7 @@ def save_title(video_id, title):
     except Exception:
         cache = {}
     cache[video_id] = title
-    TITLE_CACHE.write_text(json.dumps(cache), encoding="utf-8")
+    TITLE_CACHE.write_text(json.dumps(cache, ensure_ascii=False), encoding="utf-8")
 
 def load_title(video_id):
     try:
@@ -46,6 +47,7 @@ def get_unique_video_ids():
     return unique_ids
 
 def safe_filename(name):
+    name = unidecode(name)  # Transliterates Unicode to ASCII
     return "".join(c if c.isalnum() or c in " ._-" else "_" for c in name)
 
 @app.route("/")
