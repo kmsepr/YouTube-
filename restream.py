@@ -1,177 +1,227 @@
 import os
 import time
-import logging
-import subprocess
-from flask import Flask, request, Response, redirect
-from pathlib import Path
-from urllib.parse import quote_plus
-import requests
 import json
-from unidecode import unidecode
+import subprocess
+import logging
+import threading
+from flask import Flask, Response, request
+from pathlib import Path
 
 app = Flask(__name__)
-TMP_DIR = Path("/mnt/data/ytmp3")
+logging.basicConfig(level=logging.INFO)
+
+# Interval settings
+REFRESH_INTERVAL = 1200       # 20 minutes
+RECHECK_INTERVAL = 3600       # 60 minutes
+EXPIRE_AGE = 7200             # 2 hours
+
+# Fixed user agent
+FIXED_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+
+CHANNELS = {
+    "maheen": "https://youtube.com/@hitchhikingnomaad/videos",
+    "entri": "https://youtube.com/@entriapp/videos",
+    "zamzam": "https://youtube.com/@zamzamacademy/videos",
+    "jrstudio": "https://youtube.com/@jrstudiomalayalam/videos",
+    "raftalks": "https://youtube.com/@raftalksmalayalam/videos",
+    "parvinder": "https://www.youtube.com/@pravindersheoran/videos",
+    "qasimi": "https://www.youtube.com/@quranstudycentremukkam/videos",
+    "sharique": "https://youtube.com/@shariquesamsudheen/videos",
+    "drali": "https://youtube.com/@draligomaa/videos",
+    "yaqeen": "https://youtube.com/@yaqeeninstituteofficial/videos",
+    "talent": "https://youtube.com/@talentacademyonline/videos",
+    "vijayakumarblathur": "https://youtube.com/@vijayakumarblathur/videos",
+    "entridegree": "https://youtube.com/@entridegreelevelexams/videos",
+    "suprabhatam": "https://youtube.com/@suprabhaatham2023/videos",
+    "bayyinah": "https://youtube.com/@bayyinah/videos",
+    "vallathorukatha": "https://www.youtube.com/@babu_ramachandran/videos",
+    "furqan": "https://youtube.com/@alfurqan4991/videos",
+    "skicr": "https://youtube.com/@skicrtv/videos",
+    "dhruvrathee": "https://youtube.com/@dhruvrathee/videos",
+    "safari": "https://youtube.com/@safaritvlive/videos",
+    "sunnxt": "https://youtube.com/@sunnxtmalayalam/videos",
+    "movieworld": "https://youtube.com/@movieworldmalayalammovies/videos",
+    "comedy": "https://youtube.com/@malayalamcomedyscene5334/videos",
+    "studyiq": "https://youtube.com/@studyiqiasenglish/videos",
+}
+
+VIDEO_CACHE = {name: {"url": None, "last_checked": 0, "thumbnail": "", "upload_date": ""} for name in CHANNELS}
+LAST_VIDEO_ID = {name: None for name in CHANNELS}
+TMP_DIR = Path("/tmp/ytmp3")
 TMP_DIR.mkdir(exist_ok=True)
 
-TITLE_CACHE = TMP_DIR / "title_cache.json"
-if not TITLE_CACHE.exists():
-    TITLE_CACHE.write_text("{}", encoding="utf-8")
-
-FIXED_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
-YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY")
-
-logging.basicConfig(level=logging.DEBUG)
-
-def save_title(video_id, title):
+def fetch_latest_video_url(name, channel_url):
     try:
-        cache = json.loads(TITLE_CACHE.read_text(encoding="utf-8"))
-    except Exception:
-        cache = {}
-    cache[video_id] = title
-    TITLE_CACHE.write_text(json.dumps(cache, ensure_ascii=False), encoding="utf-8")
+        result = subprocess.run([
+            "yt-dlp",
+            "--dump-single-json",
+            "--playlist-end", "1",
+            "--cookies", "/mnt/data/cookies.txt",
+            "--user-agent", FIXED_USER_AGENT,
+            channel_url
+        ], capture_output=True, text=True, check=True)
 
-def load_title(video_id):
+        data = json.loads(result.stdout)
+        video = data["entries"][0]
+        video_id = video["id"]
+        thumbnail_url = video.get("thumbnail", "")
+        upload_date = video.get("upload_date", "")
+        return f"https://www.youtube.com/watch?v={video_id}", thumbnail_url, video_id, upload_date
+    except Exception as e:
+        logging.error(f"Error fetching video from {channel_url}: {e}")
+        return None, None, None, None
+
+def download_and_convert(channel, video_url):
+    final_path = TMP_DIR / f"{channel}.mp3"
+    if final_path.exists():
+        return final_path
+    if not video_url:
+        return None
     try:
-        cache = json.loads(TITLE_CACHE.read_text(encoding="utf-8"))
-        return cache.get(video_id, video_id)
-    except Exception:
-        return video_id
+        subprocess.run([
+            "yt-dlp",
+            "-f", "bestaudio",
+            "--output", str(TMP_DIR / f"{channel}.%(ext)s"),
+            "--cookies", "/mnt/data/cookies.txt",
+            "--user-agent", FIXED_USER_AGENT,
+            "--postprocessor-args", "-ar 22050 -ac 1 -b:a 40k",
+            "--extract-audio",
+            "--audio-format", "mp3",
+            video_url
+        ], check=True)
+        return final_path if final_path.exists() else None
+    except Exception as e:
+        logging.error(f"Error converting {channel}: {e}")
+        partial = final_path.with_suffix(".mp3.part")
+        if partial.exists():
+            partial.unlink()
+        return None
 
-def get_unique_video_ids():
-    files = list(TMP_DIR.glob("*.mp3")) + list(TMP_DIR.glob("*.mp4"))
-    unique_ids = {}
-    for file in files:
-        vid = file.stem.split("_")[0]
-        if vid not in unique_ids:
-            unique_ids[vid] = file
-    return unique_ids
+def cleanup_old_files():
+    while True:
+        current_time = time.time()
+        for file in TMP_DIR.glob("*.mp3"):
+            if current_time - file.stat().st_mtime > EXPIRE_AGE:
+                try:
+                    logging.info(f"Cleaning up old file: {file}")
+                    file.unlink()
+                except Exception as e:
+                    logging.error(f"Error cleaning up file {file}: {e}")
+        time.sleep(EXPIRE_AGE)
 
-def safe_filename(name):
-    name = unidecode(name)  # Transliterates Unicode to ASCII
-    return "".join(c if c.isalnum() or c in " ._-" else "_" for c in name)
+def update_video_cache_loop():
+    while True:
+        for name, url in CHANNELS.items():
+            video_url, thumbnail, video_id, upload_date = fetch_latest_video_url(name, url)
+            if video_url and video_id:
+                if LAST_VIDEO_ID[name] != video_id:
+                    LAST_VIDEO_ID[name] = video_id
+                    VIDEO_CACHE[name]["url"] = video_url
+                    VIDEO_CACHE[name]["last_checked"] = time.time()
+                    VIDEO_CACHE[name]["thumbnail"] = thumbnail
+                    VIDEO_CACHE[name]["upload_date"] = upload_date
+                    download_and_convert(name, video_url)
+            time.sleep(3)
+        time.sleep(REFRESH_INTERVAL)
+
+def auto_download_mp3s():
+    while True:
+        for name, data in VIDEO_CACHE.items():
+            video_url = data.get("url")
+            if video_url:
+                mp3_path = TMP_DIR / f"{name}.mp3"
+                if not mp3_path.exists() or time.time() - mp3_path.stat().st_mtime > RECHECK_INTERVAL:
+                    logging.info(f"Pre-downloading {name}")
+                    download_and_convert(name, video_url)
+            time.sleep(3)
+        time.sleep(RECHECK_INTERVAL)
+
+@app.route("/<channel>.mp3")
+def stream_mp3(channel):
+    if channel not in CHANNELS:
+        return "Channel not found", 404
+
+    video_url = VIDEO_CACHE[channel].get("url")
+    upload_date = VIDEO_CACHE[channel].get("upload_date")
+    if not video_url:
+        video_url, thumbnail, video_id, upload_date = fetch_latest_video_url(channel, CHANNELS[channel])
+        if not video_url:
+            return "Unable to fetch video", 500
+        if video_id and LAST_VIDEO_ID[channel] != video_id:
+            LAST_VIDEO_ID[channel] = video_id
+            VIDEO_CACHE[channel]["url"] = video_url
+            VIDEO_CACHE[channel]["thumbnail"] = thumbnail
+            VIDEO_CACHE[channel]["upload_date"] = upload_date
+            VIDEO_CACHE[channel]["last_checked"] = time.time()
+
+    mp3_path = download_and_convert(channel, video_url)
+    if not mp3_path or not mp3_path.exists():
+        return "Error preparing stream", 500
+
+    file_size = os.path.getsize(mp3_path)
+    range_header = request.headers.get('Range', None)
+    headers = {
+        'Content-Type': 'audio/mpeg',
+        'Accept-Ranges': 'bytes',
+    }
+
+    if range_header:
+        try:
+            range_value = range_header.strip().split("=")[1]
+            byte1, byte2 = range_value.split("-")
+            byte1 = int(byte1)
+            byte2 = int(byte2) if byte2 else file_size - 1
+        except Exception as e:
+            return f"Invalid Range header: {e}", 400
+
+        length = byte2 - byte1 + 1
+        with open(mp3_path, 'rb') as f:
+            f.seek(byte1)
+            chunk = f.read(length)
+
+        headers.update({
+            'Content-Range': f'bytes {byte1}-{byte2}/{file_size}',
+            'Content-Length': str(length)
+        })
+        return Response(chunk, status=206, headers=headers)
+
+    with open(mp3_path, 'rb') as f:
+        data = f.read()
+    headers['Content-Length'] = str(file_size)
+    return Response(data, headers=headers)
 
 @app.route("/")
 def index():
-    search_html = """<form method='get' action='/search'>
-    <input type='text' name='q' placeholder='Search YouTube...'>
-    <input type='submit' value='Search'></form><br>"""
-
-    cached_html = "<h3>Cached Files</h3>"
-    for video_id, file in get_unique_video_ids().items():
-        ext = file.suffix.lstrip(".")
-        title = load_title(video_id)
-        cached_html += f"""
-        <div style='margin-bottom:10px;'>
-            <img src='https://i.ytimg.com/vi/{video_id}/mqdefault.jpg' width='120'><br>
-            <b>{title}</b><br>
-            <a href='/download?q={video_id}&fmt=mp3'>Download MP3</a> |
-            <a href='/download?q={video_id}&fmt=mp4'>Download MP4</a>
-        </div>
-        """
-    return f"<html><body style='font-family:sans-serif;'>{search_html}{cached_html}</body></html>"
-
-@app.route("/search")
-def search():
-    query = request.args.get("q", "").strip()
-    if not query:
-        return redirect("/")
-
-    url = "https://www.googleapis.com/youtube/v3/search"
-    params = {
-        "key": YOUTUBE_API_KEY,
-        "q": query,
-        "part": "snippet",
-        "type": "video",
-        "maxResults": 5
-    }
-
-    r = requests.get(url, params=params)
-    results = r.json().get("items", [])
-
-    html = f"""
-    <html><head><title>Search results for '{query}'</title></head>
-    <body style='font-family:sans-serif;'>
-    <form method='get' action='/search'>
-        <input type='text' name='q' value='{query}' placeholder='Search YouTube'>
-        <input type='submit' value='Search'>
-    </form><br><h3>Search results for '{query}'</h3>
+    html = """
+    <html><head><title>YouTube Mp3</title></head>
+    <body style="font-family:sans-serif; font-size:12px; background:#fff;">
+    <h3>YouTube Mp3</h3>
     """
+    def get_upload_date(channel):
+        return VIDEO_CACHE[channel].get("upload_date", "Unknown")
 
-    for item in results:
-        video_id = item["id"]["videoId"]
-        title = item["snippet"]["title"]
-        thumbnail = item["snippet"]["thumbnails"]["medium"]["url"]
-        save_title(video_id, title)
+    for channel in sorted(CHANNELS, key=lambda x: get_upload_date(x), reverse=True):
+        mp3_path = TMP_DIR / f"{channel}.mp3"
+        if not mp3_path.exists():
+            continue
+        thumbnail = VIDEO_CACHE[channel].get("thumbnail", "") or "https://via.placeholder.com/120x80?text=YT"
+        upload_date = get_upload_date(channel)
         html += f"""
-        <div style='margin-bottom:10px;'>
-            <img src='{thumbnail}' width='120'><br>
-            <b>{title}</b><br>
-            <a href='/download?q={quote_plus(video_id)}&fmt=mp3'>Download MP3</a> |
-            <a href='/download?q={quote_plus(video_id)}&fmt=mp4'>Download MP4</a>
+        <div style="margin-bottom:12px; padding:6px; border:1px solid #ccc; border-radius:6px; width:160px;">
+            <img src="{thumbnail}" loading="lazy" style="width:100%; height:auto; display:block; margin-bottom:4px;" alt="{channel}">
+            <div style="text-align:center;">
+                <a href="/{channel}.mp3" style="color:#000; text-decoration:none;">{channel}</a><br>
+                <small>{upload_date}</small>
+            </div>
         </div>
         """
     html += "</body></html>"
     return html
 
-@app.route("/download")
-def download():
-    video_id = request.args.get("q")
-    fmt = request.args.get("fmt", "mp3")
-    if not video_id:
-        return "Missing video ID", 400
-
-    title = safe_filename(load_title(video_id))
-    ext = "mp3" if fmt == "mp3" else "mp4"
-    filename = f"{video_id}_{title}.{ext}"
-    file_path = TMP_DIR / filename
-
-    if not file_path.exists():
-        url = f"https://www.youtube.com/watch?v={video_id}"
-        cookies_path = "/mnt/data/cookies.txt"
-        if not Path(cookies_path).exists():
-            return "Cookies file not found", 400
-
-        base_cmd = [
-            "yt-dlp",
-            "--output", str(TMP_DIR / f"{video_id}_{title}.%(ext)s"),
-            "--user-agent", FIXED_USER_AGENT,
-            "--cookies", cookies_path,
-            url
-        ]
-
-        if fmt == "mp3":
-            cmd = base_cmd[:1] + ["-f", "bestaudio"] + base_cmd[1:] + [
-                "--postprocessor-args", "-ar 22050 -ac 1 -b:a 40k",
-                "--extract-audio", "--audio-format", "mp3"
-            ]
-        else:
-            cmd = base_cmd[:1] + ["-f", "best[ext=mp4]"] + base_cmd[1:] + [
-                "--recode-video", "mp4",
-                "--postprocessor-args", "-vf scale=320:240 -r 15 -b:v 384k -b:a 12k"
-            ]
-
-        success = False
-        for attempt in range(3):
-            try:
-                logging.debug(f"Attempt {attempt + 1}: running yt-dlp...")
-                subprocess.run(cmd, check=True)
-                success = True
-                break
-            except subprocess.CalledProcessError as e:
-                logging.warning(f"Attempt {attempt + 1} failed: {e}")
-                time.sleep(10)
-
-        if not success or not file_path.exists():
-            return "Download failed after retries", 500
-
-    def generate():
-        with open(file_path, "rb") as f:
-            yield from f
-
-    mimetype = "audio/mpeg" if fmt == "mp3" else "video/mp4"
-    return Response(generate(), mimetype=mimetype, headers={
-        "Content-Disposition": f'attachment; filename="{filename}"'
-    })
+# Start background tasks
+threading.Thread(target=update_video_cache_loop, daemon=True).start()
+threading.Thread(target=auto_download_mp3s, daemon=True).start()
+threading.Thread(target=cleanup_old_files, daemon=True).start()
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000)
