@@ -1,29 +1,127 @@
-# Use Python 3.12 slim image as the base
-FROM python:3.12-slim
+import os
+import logging
+import subprocess
+from flask import Flask, request, Response
+from pathlib import Path
+from urllib.parse import quote_plus
+import requests
 
-# Set working directory
-WORKDIR /app
+app = Flask(__name__)
+TMP_DIR = Path("/tmp/ytmp3")
+TMP_DIR.mkdir(exist_ok=True)
 
-# Install system dependencies
-RUN apt-get update && \
-    apt-get install -y ffmpeg wget && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
+FIXED_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY")
 
-# Install yt-dlp from the latest release
-RUN wget -O /usr/local/bin/yt-dlp https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp && \
-    chmod a+rx /usr/local/bin/yt-dlp
+# Set up logging for debugging purposes
+logging.basicConfig(level=logging.DEBUG)
 
-# Copy the application code into the container
-COPY . /app
+def get_cached_files():
+    return [f for f in TMP_DIR.glob("*.mp3")]
 
-# Install Python dependencies from requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+@app.route("/")
+def index():
+    search_html = """
+    <form method='get' action='/search'>
+        <input type='text' name='q' placeholder='Search YouTube...'>
+        <input type='submit' value='Search'>
+    </form><br>
+    """
 
-# Expose port 8000 for the Flask application
-EXPOSE 8000
+    cached_html = "<h3>Cached MP3s</h3>"
+    for file in get_cached_files():
+        video_id = file.stem
+        cached_html += f"""
+        <div style='margin-bottom:10px;'>
+            <img src='https://i.ytimg.com/vi/{video_id}/mqdefault.jpg' width='120'><br>
+            <a href='/download?q={video_id}'>{video_id}</a>
+        </div>
+        """
 
-# Create a persistent storage path (Koyeb will mount this at runtime)
-VOLUME /mnt/data
+    return f"<html><body style='font-family:sans-serif;'>{search_html}{cached_html}</body></html>"
 
-# Command to run the app
-CMD ["python", "restream.py"]
+@app.route("/search")
+def search():
+    query = request.args.get("q", "").strip()
+    if not query:
+        return redirect("/")
+
+    url = f"https://www.googleapis.com/youtube/v3/search"
+    params = {
+        "key": YOUTUBE_API_KEY,
+        "q": query,
+        "part": "snippet",
+        "type": "video",
+        "maxResults": 5
+    }
+
+    r = requests.get(url, params=params)
+    results = r.json().get("items", [])
+
+    html = f"""
+    <html><head><title>Search results for '{query}'</title></head>
+    <body style='font-family:sans-serif;'>
+    <form method='get' action='/search'>
+        <input type='text' name='q' value='{query}' placeholder='Search YouTube'>
+        <input type='submit' value='Search'>
+    </form><br>
+    <h3>Search results for '{query}'</h3>
+    """
+
+    for item in results:
+        video_id = item["id"]["videoId"]
+        title = item["snippet"]["title"]
+        thumbnail = item["snippet"]["thumbnails"]["medium"]["url"]
+        html += f"""
+        <div style='margin-bottom:10px;'>
+            <img src='{thumbnail}' width='120'><br>
+            {title}<br>
+            <a href='/download?q={quote_plus(video_id)}'>Download MP3</a>
+        </div>
+        """
+    html += "</body></html>"
+    return html
+
+@app.route("/download")
+def download():
+    video_id = request.args.get("q")
+    if not video_id:
+        return "Missing video ID", 400
+
+    mp3_path = TMP_DIR / f"{video_id}.mp3"
+    if not mp3_path.exists():
+        url = f"https://www.youtube.com/watch?v={video_id}"
+
+        cookies_path = "/mnt/data/cookies.txt"  # Path to your cookies.txt file
+        logging.debug(f"Using cookies from: {cookies_path}")
+
+        if not Path(cookies_path).exists():
+            logging.error(f"Cookies file does not exist at {cookies_path}")
+            return "Cookies file not found.", 400
+
+        try:
+            subprocess.run([
+                "yt-dlp", "-f", "bestaudio",
+                "--output", str(TMP_DIR / f"{video_id}.%(ext)s"),
+                "--user-agent", FIXED_USER_AGENT,
+                "--postprocessor-args", "-ar 22050 -ac 1 -b:a 40k",
+                "--extract-audio",
+                "--audio-format", "mp3",
+                "--cookies", cookies_path,  # Add the cookies option
+                url
+            ], check=True)
+        except Exception as e:
+            logging.error(f"Download error: {e}")
+            return f"Download error: {e}", 500
+
+    if not mp3_path.exists():
+        return "File not available", 500
+
+    def generate():
+        with open(mp3_path, "rb") as f:
+            yield from f
+
+    return Response(generate(), mimetype="audio/mpeg")
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=8000)
