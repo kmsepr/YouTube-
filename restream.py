@@ -120,7 +120,7 @@ def download():
 
     title = safe_filename(load_title(video_id))
     ext = "mp3" if fmt == "mp3" else "mp4"
-    filename = f"{video_id}_{title}.{ext}"
+    filename = f"{title}.{ext}"
     file_path = TMP_DIR / filename
 
     if not file_path.exists():
@@ -131,7 +131,7 @@ def download():
 
         base_cmd = [
             "yt-dlp",
-            "--output", str(TMP_DIR / f"{video_id}_{title}.%(ext)s"),
+            "--output", str(TMP_DIR / f"{title}.%(ext)s"),
             "--user-agent", FIXED_USER_AGENT,
             "--cookies", cookies_path,
             url
