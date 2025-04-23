@@ -1,22 +1,41 @@
 import os
+import json
 import logging
 import subprocess
 from flask import Flask, request, Response, redirect
 from pathlib import Path
-from urllib.parse import quote_plus
+from urllib.parse import quote_plus, unquote
 import requests
 
 app = Flask(__name__)
 TMP_DIR = Path("/tmp/ytmp3")
+META_PATH = TMP_DIR / "meta.json"
 TMP_DIR.mkdir(exist_ok=True)
+if not META_PATH.exists():
+    META_PATH.write_text("{}", encoding="utf-8")
 
 FIXED_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
 YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY")
 
 logging.basicConfig(level=logging.DEBUG)
 
+def load_meta():
+    try:
+        return json.loads(META_PATH.read_text(encoding="utf-8"))
+    except:
+        return {}
+
+def save_meta(meta):
+    META_PATH.write_text(json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8")
+
 def get_cached_files():
-    return [f for f in TMP_DIR.glob("*.mp3")]
+    meta = load_meta()
+    cached = []
+    for file in TMP_DIR.glob("*.mp3"):
+        for vid, title in meta.items():
+            if file.name.endswith(f"{vid}].mp3"):
+                cached.append((vid, title, file.name))
+    return cached
 
 @app.route("/")
 def index():
@@ -25,12 +44,12 @@ def index():
     <input type='submit' value='Search'></form><br>"""
 
     cached_html = "<h3>Cached MP3s</h3>"
-    for file in get_cached_files():
-        video_id = file.stem
+    for video_id, title, filename in get_cached_files():
         cached_html += f"""
         <div style='margin-bottom:10px;'>
             <img src='https://i.ytimg.com/vi/{video_id}/mqdefault.jpg' width='120'><br>
-            <a href='/download?q={video_id}'>{video_id}</a>
+            <b>{title}</b><br>
+            <a href='/download?q={video_id}'>{filename}</a>
         </div>
         """
     return f"<html><body style='font-family:sans-serif;'>{search_html}{cached_html}</body></html>"
@@ -82,7 +101,27 @@ def download():
     if not video_id:
         return "Missing video ID", 400
 
-    mp3_path = TMP_DIR / f"{video_id}.mp3"
+    meta = load_meta()
+    if video_id in meta:
+        title = meta[video_id]
+    else:
+        # Get metadata only
+        try:
+            logging.info(f"Fetching metadata for {video_id}")
+            result = subprocess.run([
+                "yt-dlp", f"https://www.youtube.com/watch?v={video_id}",
+                "--skip-download", "--print", "%(title)s"
+            ], check=True, capture_output=True, text=True)
+            title = result.stdout.strip()
+            meta[video_id] = title
+            save_meta(meta)
+        except subprocess.CalledProcessError as e:
+            logging.error(f"Failed to get title: {e}")
+            return "Metadata fetch failed", 500
+
+    filename = f"{title} [{video_id}].mp3"
+    mp3_path = TMP_DIR / filename
+
     if not mp3_path.exists():
         url = f"https://www.youtube.com/watch?v={video_id}"
         cookies_path = "/mnt/data/cookies.txt"
@@ -95,7 +134,7 @@ def download():
         try:
             subprocess.run([
                 "yt-dlp", "-f", "bestaudio",
-                "--output", str(TMP_DIR / f"{video_id}.%(ext)s"),
+                "--output", str(TMP_DIR / f"{title} [{video_id}].%(ext)s"),
                 "--user-agent", FIXED_USER_AGENT,
                 "--postprocessor-args", "-ar 22050 -ac 1 -b:a 40k",
                 "--extract-audio",
