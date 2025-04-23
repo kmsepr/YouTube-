@@ -16,20 +16,14 @@ YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY")
 
 logging.basicConfig(level=logging.DEBUG)
 
-def get_cached_files():
-    return list(TMP_DIR.glob("*.mp3")) + list(TMP_DIR.glob("*.mp4"))
-
-def save_title(video_id, title):
-    meta_path = TMP_DIR / f"{video_id}.json"
-    with open(meta_path, "w") as f:
-        json.dump({"title": title}, f)
-
-def load_title(video_id):
-    meta_path = TMP_DIR / f"{video_id}.json"
-    if meta_path.exists():
-        with open(meta_path) as f:
-            return json.load(f).get("title", video_id)
-    return video_id
+def get_unique_video_ids():
+    files = list(TMP_DIR.glob("*.mp3")) + list(TMP_DIR.glob("*.mp4"))
+    unique_ids = {}
+    for file in files:
+        vid = file.stem
+        if vid not in unique_ids:
+            unique_ids[vid] = file
+    return unique_ids
 
 def safe_filename(name):
     return "".join(c if c.isalnum() or c in " ._-" else "_" for c in name)
@@ -41,18 +35,17 @@ def index():
     <input type='submit' value='Search'></form><br>"""
 
     cached_html = "<h3>Cached Files</h3>"
-    for file in get_cached_files():
-        video_id = file.stem
-        ext = file.suffix.lstrip(".")
-        title = load_title(video_id)
-        cached_html += f"""
-        <div style='margin-bottom:10px;'>
-            <img src='https://i.ytimg.com/vi/{video_id}/mqdefault.jpg' width='120'><br>
-            <b>{title}</b><br>
-            <a href='/download?q={video_id}&fmt=mp3'>Download MP3</a> |
-            <a href='/download?q={video_id}&fmt=mp4'>Download MP4</a>
-        </div>
-        """
+    for video_id, file in get_unique_video_ids().items():
+    ext = file.suffix.lstrip(".")
+    title = load_title(video_id)
+    cached_html += f"""
+    <div style='margin-bottom:10px;'>
+        <img src='https://i.ytimg.com/vi/{video_id}/mqdefault.jpg' width='120'><br>
+        <b>{title}</b><br>
+        <a href='/download?q={video_id}&fmt=mp3'>Download MP3</a> |
+        <a href='/download?q={video_id}&fmt=mp4'>Download MP4</a>
+    </div>
+    """
     return f"<html><body style='font-family:sans-serif;'>{search_html}{cached_html}</body></html>"
 
 @app.route("/search")
