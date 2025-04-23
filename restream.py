@@ -16,7 +16,6 @@ YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY")
 
 logging.basicConfig(level=logging.DEBUG)
 
-# Cache metadata as video_id.json
 def get_cached_files():
     return list(TMP_DIR.glob("*.mp3")) + list(TMP_DIR.glob("*.mp4"))
 
@@ -31,6 +30,9 @@ def load_title(video_id):
         with open(meta_path) as f:
             return json.load(f).get("title", video_id)
     return video_id
+
+def safe_filename(name):
+    return "".join(c if c.isalnum() or c in " ._-" else "_" for c in name)
 
 @app.route("/")
 def index():
@@ -99,12 +101,13 @@ def search():
 @app.route("/download")
 def download():
     video_id = request.args.get("q")
-    fmt = request.args.get("fmt", "mp3")  # mp3 or mp4
+    fmt = request.args.get("fmt", "mp3")
     if not video_id:
         return "Missing video ID", 400
 
+    title = safe_filename(load_title(video_id))
     ext = "mp3" if fmt == "mp3" else "mp4"
-    file_path = TMP_DIR / f"{video_id}.{ext}"
+    file_path = TMP_DIR / f"{title}.{ext}"
 
     if not file_path.exists():
         url = f"https://www.youtube.com/watch?v={video_id}"
@@ -116,16 +119,16 @@ def download():
             if fmt == "mp3":
                 cmd = [
                     "yt-dlp", "-f", "bestaudio",
-                    "--output", str(TMP_DIR / f"{video_id}.%(ext)s"),
+                    "--output", str(TMP_DIR / f"{title}.%(ext)s"),
                     "--user-agent", FIXED_USER_AGENT,
                     "--postprocessor-args", "-ar 22050 -ac 1 -b:a 40k",
                     "--extract-audio", "--audio-format", "mp3",
                     "--cookies", cookies_path, url
                 ]
-            else:  # mp4
+            else:
                 cmd = [
                     "yt-dlp", "-f", "best[ext=mp4]",
-                    "--output", str(TMP_DIR / f"{video_id}.%(ext)s"),
+                    "--output", str(TMP_DIR / f"{title}.%(ext)s"),
                     "--user-agent", FIXED_USER_AGENT,
                     "--cookies", cookies_path,
                     "--recode-video", "mp4",
@@ -145,7 +148,9 @@ def download():
             yield from f
 
     mimetype = "audio/mpeg" if fmt == "mp3" else "video/mp4"
-    return Response(generate(), mimetype=mimetype)
+    return Response(generate(), mimetype=mimetype, headers={
+        "Content-Disposition": f'attachment; filename="{title}.{ext}"'
+    })
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000)
