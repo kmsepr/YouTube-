@@ -1,35 +1,43 @@
-import html
-import time
-import requests
+import os
+import json
 import subprocess
+import logging
+import time
+import html
 from flask import Flask, request, Response, redirect
 from pathlib import Path
 from urllib.parse import quote_plus
-import os
+import requests
 
 app = Flask(__name__)
+logging.basicConfig(level=logging.INFO)
+
+# Directories and settings
 TMP_DIR = Path("/tmp/ytmp3")
 TMP_DIR.mkdir(exist_ok=True)
-
 FIXED_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
 YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY")
-CACHE_TTL = 3600  # Cache cleanup in 1 hour
+EXPIRE_AGE = 7200  # 2 hours
 
-def clean_old_files():
-    now = time.time()
-    for f in TMP_DIR.glob("*.*"):
-        if f.is_file() and now - f.stat().st_mtime > CACHE_TTL:
-            try:
-                f.unlink()
-            except Exception:
-                pass
+if not YOUTUBE_API_KEY:
+    raise ValueError("YouTube API key is missing. Please set the YOUTUBE_API_KEY environment variable.")
 
+# Utility Functions
 def get_cached_files():
-    return sorted(TMP_DIR.glob("*.mp3"), key=lambda f: f.stat().st_mtime, reverse=True)
+    """Fetch cached MP3/MP4 files sorted by modified time (most recent first)."""
+    return sorted(TMP_DIR.glob("*.mp3"), key=lambda x: x.stat().st_mtime, reverse=True)
 
+def cleanup_old_files():
+    """Cleanup files older than EXPIRE_AGE seconds."""
+    now = time.time()
+    for file in TMP_DIR.glob("*"):
+        if file.stat().st_mtime < now - EXPIRE_AGE:
+            logging.info(f"Deleting old file: {file}")
+            file.unlink()
+
+# Routes
 @app.route("/")
 def index():
-    clean_old_files()
     search_html = """
     <form method='get' action='/search'>
         <input type='text' name='q' placeholder='Search YouTube...'>
@@ -43,7 +51,7 @@ def index():
         cached_html += f"""
         <div style='margin-bottom:10px;'>
             <img src='https://i.ytimg.com/vi/{video_id}/mqdefault.jpg' width='120'><br>
-            <a href='/download?q={video_id}'>{video_id}</a>
+            <a href='/download?q={video_id}'>{html.escape(video_id)}</a>
         </div>
         """
 
@@ -55,6 +63,7 @@ def search():
     if not query:
         return redirect("/")
 
+    # YouTube API search query
     url = f"https://www.googleapis.com/youtube/v3/search"
     params = {
         "key": YOUTUBE_API_KEY,
@@ -66,15 +75,14 @@ def search():
 
     try:
         r = requests.get(url, params=params)
-        r.raise_for_status()  # Raise exception for HTTP error responses
+        r.raise_for_status()
         results = r.json().get("items", [])
     except requests.exceptions.RequestException as e:
-        return f"<h3>Error accessing YouTube API: {e}</h3>", 500
-    except Exception as e:
-        return f"<h3>Unexpected error: {e}</h3>", 500
+        logging.error(f"Error fetching search results: {e}")
+        return f"<h3>Error fetching search results: {e}</h3>", 500
 
-    html = f"""
-    <html><head><title>Search results for '{html.escape(query)}'</title></head>
+    html_response = f"""
+    <html><head><title>Search results for '{query}'</title></head>
     <body style='font-family:sans-serif;'>
     <form method='get' action='/search'>
         <input type='text' name='q' value='{html.escape(query)}' placeholder='Search YouTube'>
@@ -87,7 +95,7 @@ def search():
         video_id = item["id"]["videoId"]
         title = item["snippet"]["title"]
         thumbnail = item["snippet"]["thumbnails"]["medium"]["url"]
-        html += f"""
+        html_response += f"""
         <div style='margin-bottom:10px;'>
             <img src='{thumbnail}' width='120'><br>
             {html.escape(title)}<br>
@@ -95,8 +103,8 @@ def search():
             <a href='/download_mp4?q={quote_plus(video_id)}'>Download MP4</a>
         </div>
         """
-    html += "</body></html>"
-    return html
+    html_response += "</body></html>"
+    return html_response
 
 @app.route("/download")
 def download():
@@ -118,6 +126,7 @@ def download():
                 url
             ], check=True)
         except Exception as e:
+            logging.error(f"Download error: {e}")
             return f"Download error: {e}", 500
 
     if not mp3_path.exists():
@@ -135,16 +144,19 @@ def download_mp4():
     if not video_id:
         return "Missing video ID", 400
 
-    mp4_path = TMP_DIR / f"{video_id}.mp4"
+    mp4_path = TMP_DIR / f"{video_id}_320x240.mp4"
     if not mp4_path.exists():
         url = f"https://www.youtube.com/watch?v={video_id}"
         try:
             subprocess.run([
-                "yt-dlp", "-f", "18",  # format 18 = 360p MP4
-                "--output", str(mp4_path),
+                "yt-dlp", "-f", "bestvideo[height<=240]+bestaudio/best",
+                "--output", str(TMP_DIR / f"{video_id}_320x240.%(ext)s"),
                 "--user-agent", FIXED_USER_AGENT,
+                "--postprocessor-args", "-vf scale=320:240",
+                url
             ], check=True)
         except Exception as e:
+            logging.error(f"Download error: {e}")
             return f"Download error: {e}", 500
 
     if not mp4_path.exists():
