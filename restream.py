@@ -4,8 +4,10 @@ import json
 import subprocess
 import logging
 import threading
-from flask import Flask, Response, request
+from flask import Flask, Response, request, send_file
 from pathlib import Path
+import requests
+from io import BytesIO
 
 app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -136,6 +138,22 @@ def auto_download_mp3s():
             time.sleep(3)
         time.sleep(RECHECK_INTERVAL)
 
+@app.route("/thumbnail_proxy")
+def thumbnail_proxy():
+    url = request.args.get("url")
+    if not url:
+        return "Missing URL", 400
+    try:
+        headers = {"User-Agent": FIXED_USER_AGENT}
+        resp = requests.get(url, headers=headers, timeout=5)
+        if resp.status_code == 200:
+            return send_file(BytesIO(resp.content), mimetype='image/jpeg')
+        else:
+            return "Failed to fetch image", 502
+    except Exception as e:
+        logging.error(f"Thumbnail proxy error: {e}")
+        return "Error fetching image", 500
+
 @app.route("/<channel>.mp3")
 def stream_mp3(channel):
     if channel not in CHANNELS:
@@ -208,7 +226,7 @@ def index():
         upload_date = get_upload_date(channel)
         html += f"""
         <div style="margin-bottom:12px; padding:6px; border:1px solid #ccc; border-radius:6px; width:160px;">
-            <img src="{thumbnail}" loading="lazy" style="width:100%; height:auto; display:block; margin-bottom:4px;" alt="{channel}">
+            <img src="/thumbnail_proxy?url={thumbnail}" loading="lazy" style="width:100%; height:auto; display:block; margin-bottom:4px;" alt="{channel}">
             <div style="text-align:center;">
                 <a href="/{channel}.mp3" style="color:#000; text-decoration:none;">{channel}</a><br>
                 <small>{upload_date}</small>
@@ -224,4 +242,4 @@ threading.Thread(target=auto_download_mp3s, daemon=True).start()
 threading.Thread(target=cleanup_old_files, daemon=True).start()
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8000)
+    app.run(host="0.0.0.0", port=8000, debug=True)
