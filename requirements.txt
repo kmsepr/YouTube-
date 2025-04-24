@@ -1,4 +1,5 @@
 flask
 yt-dlp
 requests 
-unidecode
+unidecode 
+eyed3
