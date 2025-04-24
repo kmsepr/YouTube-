@@ -7,6 +7,7 @@ import threading
 from flask import Flask, Response, request, send_file
 from pathlib import Path
 import requests
+import eyed3
 from io import BytesIO
 
 app = Flask(__name__)
@@ -87,6 +88,16 @@ def download_and_convert(channel, video_url):
             "--audio-format", "mp3",
             video_url
         ], check=True)
+
+        # Add metadata using eyed3
+        mp3_file = TMP_DIR / f"{channel}.mp3"
+        if mp3_file.exists():
+            audio_file = eyed3.load(mp3_file)
+            audio_file.tag.artist = channel
+            audio_file.tag.title = f"Latest Video from {channel}"
+            audio_file.tag.album = "YouTube Channel Audio"
+            audio_file.tag.save()
+
         return final_path if final_path.exists() else None
     except Exception as e:
         logging.error(f"Error converting {channel}: {e}")
