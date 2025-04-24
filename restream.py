@@ -22,7 +22,7 @@ FIXED_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
 
 CHANNELS = {
 
-   "mediaone": "https://youtube.com/@mediaonetvlive/videos,
+   "mediaone": "https://youtube.com/@mediaonetvlive/videos",
     "maheen": "https://youtube.com/@hitchhikingnomaad/videos",
     "entri": "https://youtube.com/@entriapp/videos",
     "zamzam": "https://youtube.com/@zamzamacademy/videos",
