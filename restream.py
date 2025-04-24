@@ -17,7 +17,6 @@ REFRESH_INTERVAL = 1200       # 20 minutes
 RECHECK_INTERVAL = 3600       # 60 minutes
 EXPIRE_AGE = 7200             # 2 hours
 
-# Fixed user agent
 FIXED_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
 
 CHANNELS = {
@@ -55,9 +54,7 @@ TMP_DIR.mkdir(exist_ok=True)
 def fetch_latest_video_url(name, channel_url):
     try:
         result = subprocess.run([
-            "yt-dlp",
-            "--dump-single-json",
-            "--playlist-end", "1",
+            "yt-dlp", "--dump-single-json", "--playlist-end", "1",
             "--cookies", "/mnt/data/cookies.txt",
             "--user-agent", FIXED_USER_AGENT,
             channel_url
@@ -81,8 +78,7 @@ def download_and_convert(channel, video_url):
         return None
     try:
         subprocess.run([
-            "yt-dlp",
-            "-f", "bestaudio",
+            "yt-dlp", "-f", "bestaudio",
             "--output", str(TMP_DIR / f"{channel}.%(ext)s"),
             "--cookies", "/mnt/data/cookies.txt",
             "--user-agent", FIXED_USER_AGENT,
@@ -242,4 +238,4 @@ threading.Thread(target=auto_download_mp3s, daemon=True).start()
 threading.Thread(target=cleanup_old_files, daemon=True).start()
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8000, debug=True)
+    app.run(host="0.0.0.0", port=8080)
