@@ -1,40 +1,25 @@
-Use a lightweight base image with Python
-
+# Use a lightweight Python base image
 FROM python:3.11-slim
 
-Install system dependencies
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    gcc \
+    libmagic-dev \
+ && rm -rf /var/lib/apt/lists/*
 
-RUN apt-get update && apt-get install -y 
-ffmpeg 
-curl 
-wget 
-git 
-gcc 
-libmagic-dev 
-&& rm -rf /var/lib/apt/lists/*
-
-Set work directory
-
+# Set the working directory
 WORKDIR /app
 
-Install Python dependencies
+# Copy requirements and install Python packages
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-COPY requirements.txt . RUN pip install --no-cache-dir -r requirements.txt
-
-Copy app files
-
+# Copy the rest of the app code
 COPY . .
 
-Download latest yt-dlp
+# Expose port 8000
+EXPOSE 8000
 
-RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp && 
-chmod a+rx /usr/local/bin/yt-dlp
-
-Expose port
-
-EXPOSE 8080
-
-Run the app
-
+# Start the Flask app
 CMD ["python", "restream.py"]
-
