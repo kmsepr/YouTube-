@@ -46,6 +46,20 @@ CHANNELS = {
     "movieworld": "https://youtube.com/@movieworldmalayalammovies/videos",
     "comedy": "https://youtube.com/@malayalamcomedyscene5334/videos",
     "studyiq": "https://youtube.com/@studyiqiasenglish/videos",
+"sreekanth": "https://youtube.com/@sreekanthvettiyar/videos",
+
+"jr": "https://youtube.com/@yesitsmejr/videos",
+
+"habib": "https://youtube.com/@habibomarcom/videos",
+
+"unacademy": "https://youtube.com/@unacademyiasenglish/videos",
+
+"eftguru": "https://youtube.com/@eftguru-ql8dk/videos",
+
+"anurag": "https://youtube.com/@anuragtalks1/videos",
+
+
+
 }
 
 VIDEO_CACHE = {name: {"url": None, "last_checked": 0, "thumbnail": "", "upload_date": ""} for name in CHANNELS}
