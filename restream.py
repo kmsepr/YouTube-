@@ -54,7 +54,7 @@ def fetch_latest_video_url(name, channel_url):
         logging.error(f"fetch_latest({name}) error: {e}")
         return None, None, None, None
 
-def download_and_convert(channel, video_url):
+def download_and_convert(channel, video_url, thumbnail_url):
     """
     Uses yt-dlp to:
       1) download best audio
@@ -68,6 +68,7 @@ def download_and_convert(channel, video_url):
         return None
 
     try:
+        # Step 1: Download the audio
         subprocess.run([
             "yt-dlp",
             "-f", "bestaudio",
@@ -76,11 +77,28 @@ def download_and_convert(channel, video_url):
             "--user-agent", FIXED_USER_AGENT,
             "-x",                    # extract audio
             "--audio-format", "mp3",
-            "--embed-thumbnail",     # download & embed YT thumbnail
-            "--embed-metadata",      # embed title/artist metadata
             "--prefer-ffmpeg",       # use ffmpeg backend
             video_url
         ], check=True)
+
+        # Step 2: Embed the thumbnail into the MP3
+        if thumbnail_url:
+            thumbnail_path = TMP_DIR / f"{channel}_thumb.jpg"
+            subprocess.run([
+                "curl", "-o", str(thumbnail_path), thumbnail_url
+            ], check=True)
+
+            # Use ffmpeg to embed the image as album art in the MP3
+            subprocess.run([
+                "ffmpeg", "-i", str(final_mp3), 
+                "-i", str(thumbnail_path),
+                "-map", "0", "-map", "1", "-c", "copy",
+                "-id3v2_version", "3", "-metadata", f"title={channel}",
+                "-metadata", f"artist=YouTube", str(final_mp3)
+            ], check=True)
+
+            # Clean up the thumbnail image
+            thumbnail_path.unlink()
 
         return final_mp3 if final_mp3.exists() else None
 
@@ -112,7 +130,7 @@ def update_video_cache_loop():
             if video_url and vid and LAST_VIDEO_ID[name] != vid:
                 LAST_VIDEO_ID[name] = vid
                 VIDEO_CACHE[name].update(url=video_url, thumbnail=thumb, upload_date=updt)
-                download_and_convert(name, video_url)
+                download_and_convert(name, video_url, thumb)
             time.sleep(2)
         time.sleep(REFRESH_INTERVAL)
 
@@ -123,7 +141,7 @@ def auto_download_mp3s():
             if data["url"] and (not mp3_path.exists() or
                time.time() - mp3_path.stat().st_mtime > RECHECK_INTERVAL):
                 logging.info(f"Auto-updating {name}.mp3")
-                download_and_convert(name, data["url"])
+                download_and_convert(name, data["url"], data["thumbnail"])
             time.sleep(2)
         time.sleep(RECHECK_INTERVAL)
 
@@ -140,7 +158,7 @@ def stream_mp3(channel):
             return "Failed to fetch video", 500
         VIDEO_CACHE[channel].update(url=url, thumbnail=thumb, upload_date=updt)
         LAST_VIDEO_ID[channel] = vid
-        download_and_convert(channel, url)
+        download_and_convert(channel, url, thumb)
 
     if not mp3_path.exists():
         return "Conversion error", 500
