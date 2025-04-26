@@ -83,13 +83,13 @@ def download_and_convert(channel, video_url):
     thumbnail_path = TMP_DIR / f"{channel}_thumb.jpg"
 
     try:
-        # Download thumbnail
+        # Download thumbnail if available
         if thumbnail_url:
             r = requests.get(thumbnail_url, timeout=10)
             with open(thumbnail_path, "wb") as f:
                 f.write(r.content)
 
-        # Download audio
+        # Download the audio
         subprocess.run([
             "yt-dlp",
             "-f", "bestaudio",
@@ -102,7 +102,7 @@ def download_and_convert(channel, video_url):
             video_url
         ], check=True)
 
-        # Embed thumbnail if exists
+        # Embed thumbnail if available
         if thumbnail_path.exists():
             subprocess.run([
                 "ffmpeg", "-y",
@@ -115,10 +115,11 @@ def download_and_convert(channel, video_url):
                 "-metadata:s:v comment=Cover (front)",
                 str(TMP_DIR / f"{channel}_withart.mp3")
             ], check=True)
-            # Replace original mp3
+
+            # Replace the original MP3 file with the one containing the embedded thumbnail
             (TMP_DIR / f"{channel}_withart.mp3").rename(final_path)
 
-        # Cleanup
+        # Clean up the temporary thumbnail file
         if thumbnail_path.exists():
             thumbnail_path.unlink()
 
@@ -132,7 +133,6 @@ def download_and_convert(channel, video_url):
         if thumbnail_path.exists():
             thumbnail_path.unlink()
         return None
-
 def cleanup_old_files():
     while True:
         current_time = time.time()
@@ -225,6 +225,7 @@ def stream_mp3(channel):
         data = f.read()
     headers['Content-Length'] = str(file_size)
     return Response(data, headers=headers)
+
 
 @app.route("/")
 def index():
