@@ -78,7 +78,7 @@ def download_and_convert(channel, video_url):
     """
     Uses yt-dlp to:
       1) download best audio
-      2) convert to mp3
+      2) convert to mp3 with 40 kbps mono
       3) embed thumbnail + metadata
     """
     final_mp3 = TMP_DIR / f"{channel}.mp3"
@@ -96,6 +96,8 @@ def download_and_convert(channel, video_url):
             "--user-agent", FIXED_USER_AGENT,
             "-x",                    # extract audio
             "--audio-format", "mp3",
+            "--audio-quality", "40K",  # 40 kbps
+            "--audio-mono",           # Mono audio
             "--embed-thumbnail",     # download & embed YT thumbnail
             "--embed-metadata",      # embed title/artist metadata
             "--prefer-ffmpeg",       # use ffmpeg backend
