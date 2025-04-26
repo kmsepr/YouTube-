@@ -19,10 +19,30 @@ FIXED_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
 
 # Your channels
 CHANNELS = {
-    "maheen":       "https://youtube.com/@hitchhikingnomaad/videos",
-    "entri":        "https://youtube.com/@entriapp/videos",
-    # …etc…
-    "studyiq":      "https://youtube.com/@studyiqiasenglish/videos",
+    "maheen": "https://youtube.com/@hitchhikingnomaad/videos",
+    "entri": "https://youtube.com/@entriapp/videos",
+    "zamzam": "https://youtube.com/@zamzamacademy/videos",
+    "jrstudio": "https://youtube.com/@jrstudiomalayalam/videos",
+    "raftalks": "https://youtube.com/@raftalksmalayalam/videos",
+    "parvinder": "https://www.youtube.com/@pravindersheoran/videos",
+    "qasimi": "https://www.youtube.com/@quranstudycentremukkam/videos",
+    "sharique": "https://youtube.com/@shariquesamsudheen/videos",
+    "drali": "https://youtube.com/@draligomaa/videos",
+    "yaqeen": "https://youtube.com/@yaqeeninstituteofficial/videos",
+    "talent": "https://youtube.com/@talentacademyonline/videos",
+    "vijayakumarblathur": "https://youtube.com/@vijayakumarblathur/videos",
+    "entridegree": "https://youtube.com/@entridegreelevelexams/videos",
+    "suprabhatam": "https://youtube.com/@suprabhaatham2023/videos",
+    "bayyinah": "https://youtube.com/@bayyinah/videos",
+    "vallathorukatha": "https://www.youtube.com/@babu_ramachandran/videos",
+    "furqan": "https://youtube.com/@alfurqan4991/videos",
+    "skicr": "https://youtube.com/@skicrtv/videos",
+    "dhruvrathee": "https://youtube.com/@dhruvrathee/videos",
+    "safari": "https://youtube.com/@safaritvlive/videos",
+    "sunnxt": "https://youtube.com/@sunnxtmalayalam/videos",
+    "movieworld": "https://youtube.com/@movieworldmalayalammovies/videos",
+    "comedy": "https://youtube.com/@malayalamcomedyscene5334/videos",
+    "studyiq": "https://youtube.com/@studyiqiasenglish/videos",
 }
 
 # In-memory cache for URL, thumbnail URL & upload date
@@ -54,7 +74,7 @@ def fetch_latest_video_url(name, channel_url):
         logging.error(f"fetch_latest({name}) error: {e}")
         return None, None, None, None
 
-def download_and_convert(channel, video_url, thumbnail_url):
+def download_and_convert(channel, video_url):
     """
     Uses yt-dlp to:
       1) download best audio
@@ -68,7 +88,6 @@ def download_and_convert(channel, video_url, thumbnail_url):
         return None
 
     try:
-        # Step 1: Download the audio
         subprocess.run([
             "yt-dlp",
             "-f", "bestaudio",
@@ -77,28 +96,11 @@ def download_and_convert(channel, video_url, thumbnail_url):
             "--user-agent", FIXED_USER_AGENT,
             "-x",                    # extract audio
             "--audio-format", "mp3",
+            "--embed-thumbnail",     # download & embed YT thumbnail
+            "--embed-metadata",      # embed title/artist metadata
             "--prefer-ffmpeg",       # use ffmpeg backend
             video_url
         ], check=True)
-
-        # Step 2: Embed the thumbnail into the MP3
-        if thumbnail_url:
-            thumbnail_path = TMP_DIR / f"{channel}_thumb.jpg"
-            subprocess.run([
-                "curl", "-o", str(thumbnail_path), thumbnail_url
-            ], check=True)
-
-            # Use ffmpeg to embed the image as album art in the MP3
-            subprocess.run([
-                "ffmpeg", "-i", str(final_mp3), 
-                "-i", str(thumbnail_path),
-                "-map", "0", "-map", "1", "-c", "copy",
-                "-id3v2_version", "3", "-metadata", f"title={channel}",
-                "-metadata", f"artist=YouTube", str(final_mp3)
-            ], check=True)
-
-            # Clean up the thumbnail image
-            thumbnail_path.unlink()
 
         return final_mp3 if final_mp3.exists() else None
 
@@ -130,7 +132,7 @@ def update_video_cache_loop():
             if video_url and vid and LAST_VIDEO_ID[name] != vid:
                 LAST_VIDEO_ID[name] = vid
                 VIDEO_CACHE[name].update(url=video_url, thumbnail=thumb, upload_date=updt)
-                download_and_convert(name, video_url, thumb)
+                download_and_convert(name, video_url)
             time.sleep(2)
         time.sleep(REFRESH_INTERVAL)
 
@@ -141,7 +143,7 @@ def auto_download_mp3s():
             if data["url"] and (not mp3_path.exists() or
                time.time() - mp3_path.stat().st_mtime > RECHECK_INTERVAL):
                 logging.info(f"Auto-updating {name}.mp3")
-                download_and_convert(name, data["url"], data["thumbnail"])
+                download_and_convert(name, data["url"])
             time.sleep(2)
         time.sleep(RECHECK_INTERVAL)
 
@@ -158,7 +160,7 @@ def stream_mp3(channel):
             return "Failed to fetch video", 500
         VIDEO_CACHE[channel].update(url=url, thumbnail=thumb, upload_date=updt)
         LAST_VIDEO_ID[channel] = vid
-        download_and_convert(channel, url, thumb)
+        download_and_convert(channel, url)
 
     if not mp3_path.exists():
         return "Conversion error", 500
