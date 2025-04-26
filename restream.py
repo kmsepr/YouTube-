@@ -92,13 +92,28 @@ def download_and_convert(channel, video_url):
         ], check=True)
 
         # Add metadata using eyed3
-        mp3_file = TMP_DIR / f"{channel}.mp3"
-        if mp3_file.exists():
-            audio_file = eyed3.load(mp3_file)
-            audio_file.tag.artist = channel
-            audio_file.tag.title = f"Latest Video from {channel}"
-            audio_file.tag.album = "YouTube Channel Audio"
-            audio_file.tag.save()
+        # Add metadata and embed thumbnail
+mp3_file = TMP_DIR / f"{channel}.mp3"
+if mp3_file.exists():
+    audio_file = eyed3.load(mp3_file)
+    if audio_file.tag is None:
+        audio_file.initTag()
+    audio_file.tag.artist = channel
+    audio_file.tag.title = f"Latest Video from {channel}"
+    audio_file.tag.album = "YouTube Channel Audio"
+
+    # Embed thumbnail if available
+    thumbnail_url = VIDEO_CACHE[channel].get("thumbnail")
+    if thumbnail_url:
+        try:
+            headers = {"User-Agent": FIXED_USER_AGENT}
+            response = requests.get(thumbnail_url, headers=headers, timeout=10)
+            if response.status_code == 200:
+                audio_file.tag.images.set(eyed3.id3.frames.ImageFrame.FRONT_COVER, response.content, 'image/jpeg')
+        except Exception as e:
+            logging.error(f"Failed to fetch or embed thumbnail for {channel}: {e}")
+
+    audio_file.tag.save()
 
         return final_path if final_path.exists() else None
     except Exception as e:
