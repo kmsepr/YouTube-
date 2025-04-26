@@ -4,6 +4,7 @@ import json
 import subprocess
 import logging
 import threading
+import requests
 from flask import Flask, Response, request
 from pathlib import Path
 
@@ -11,9 +12,9 @@ app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 
 # Interval settings
-REFRESH_INTERVAL = 1200       # 20 minutes
-RECHECK_INTERVAL = 3600       # 60 minutes
-EXPIRE_AGE = 7200             # 2 hours
+REFRESH_INTERVAL = 1200  # 20 minutes
+RECHECK_INTERVAL = 3600  # 60 minutes
+EXPIRE_AGE = 7200        # 2 hours
 
 # Fixed user agent
 FIXED_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
@@ -77,24 +78,59 @@ def download_and_convert(channel, video_url):
         return final_path
     if not video_url:
         return None
+
+    thumbnail_url = VIDEO_CACHE[channel].get("thumbnail")
+    thumbnail_path = TMP_DIR / f"{channel}_thumb.jpg"
+
     try:
+        # Download thumbnail
+        if thumbnail_url:
+            r = requests.get(thumbnail_url, timeout=10)
+            with open(thumbnail_path, "wb") as f:
+                f.write(r.content)
+
+        # Download audio
         subprocess.run([
             "yt-dlp",
             "-f", "bestaudio",
             "--output", str(TMP_DIR / f"{channel}.%(ext)s"),
             "--cookies", "/mnt/data/cookies.txt",
             "--user-agent", FIXED_USER_AGENT,
-            "--postprocessor-args", "-ar 22050 -ac 1 -b:a 40k",
             "--extract-audio",
             "--audio-format", "mp3",
+            "--audio-quality", "4",  # Medium quality
             video_url
         ], check=True)
+
+        # Embed thumbnail if exists
+        if thumbnail_path.exists():
+            subprocess.run([
+                "ffmpeg", "-y",
+                "-i", str(final_path),
+                "-i", str(thumbnail_path),
+                "-map", "0:a", "-map", "1:v",
+                "-c", "copy",
+                "-id3v2_version", "3",
+                "-metadata:s:v title=Album cover",
+                "-metadata:s:v comment=Cover (front)",
+                str(TMP_DIR / f"{channel}_withart.mp3")
+            ], check=True)
+            # Replace original mp3
+            (TMP_DIR / f"{channel}_withart.mp3").rename(final_path)
+
+        # Cleanup
+        if thumbnail_path.exists():
+            thumbnail_path.unlink()
+
         return final_path if final_path.exists() else None
+
     except Exception as e:
         logging.error(f"Error converting {channel}: {e}")
         partial = final_path.with_suffix(".mp3.part")
         if partial.exists():
             partial.unlink()
+        if thumbnail_path.exists():
+            thumbnail_path.unlink()
         return None
 
 def cleanup_old_files():
