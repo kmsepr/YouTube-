@@ -249,17 +249,25 @@ def index():
         mp3_path = TMP_DIR / f"{channel}.mp3"
         if not mp3_path.exists():
             continue
-        thumbnail = VIDEO_CACHE[channel].get("thumbnail", "") or "https://via.placeholder.com/120x80?text=YT"
+
+        thumbnail = VIDEO_CACHE[channel].get("thumbnail", "")
+        if thumbnail:
+            # Force medium quality thumbnail
+            thumbnail = thumbnail.replace("maxresdefault", "mqdefault").replace("hqdefault", "mqdefault")
+
+        else:
+            # Fallback default thumbnail if missing
+            thumbnail = "https://via.placeholder.com/320x180?text=No+Thumbnail"
+
         upload_date = get_upload_date(channel)
         html += f"""
-        <div style="margin-bottom:12px; padding:6px; border:1px solid #ccc; border-radius:6px; width:160px;">
-            <img src="{thumbnail}" loading="lazy" style="width:100%; height:auto; display:block; margin-bottom:4px;" alt="{channel}">
-            <div style="text-align:center;">
-                <a href="/{channel}.mp3" style="color:#000; text-decoration:none;">{channel}</a><br>
-                <small>{upload_date}</small>
-            </div>
+        <div style="margin-bottom:10px;">
+            <img src="{thumbnail}" style="width:160px;height:90px;object-fit:cover;">
+            <br>
+            <a href="/{channel}.mp3">{channel} ({upload_date})</a>
         </div>
         """
+
     html += "</body></html>"
     return html
 
