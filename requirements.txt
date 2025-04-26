@@ -1,5 +1,6 @@
 flask
 yt-dlp
-requests 
-unidecode 
+requests
+unidecode
 eyed3
+mutagen
