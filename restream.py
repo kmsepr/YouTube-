@@ -5,11 +5,10 @@ import subprocess
 import logging
 import threading
 import requests
-from flask import Flask, Response, request, send_file
+from flask import Flask, Response, request
 from pathlib import Path
 from mutagen.mp3 import MP3
-from mutagen.id3 import ID3, APIC, TIT2, TALB, TPE1, error
-from io import BytesIO
+from mutagen.id3 import ID3, APIC, error
 
 app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -23,8 +22,6 @@ EXPIRE_AGE = 7200             # 2 hours
 FIXED_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
 
 CHANNELS = {
-"ccm": "https://youtube.com/@cambridgecentralmosque",
-
     "maheen": "https://youtube.com/@hitchhikingnomaad/videos",
     "entri": "https://youtube.com/@entriapp/videos",
     "zamzam": "https://youtube.com/@zamzamacademy/videos",
@@ -64,6 +61,7 @@ CHANNELS = {
 
 
 }
+
 VIDEO_CACHE = {name: {"url": None, "last_checked": 0, "thumbnail": "", "upload_date": ""} for name in CHANNELS}
 LAST_VIDEO_ID = {name: None for name in CHANNELS}
 TMP_DIR = Path("/tmp/ytmp3")
@@ -85,13 +83,12 @@ def fetch_latest_video_url(name, channel_url):
         video_id = video["id"]
         thumbnail_url = video.get("thumbnail", "")
         upload_date = video.get("upload_date", "")
-        video_title = video.get("title", "Unknown")
         return f"https://www.youtube.com/watch?v={video_id}", thumbnail_url, video_id, upload_date
     except Exception as e:
         logging.error(f"Error fetching video from {channel_url}: {e}")
         return None, None, None, None
 
-def embed_thumbnail(mp3_path, thumbnail_url, video_title, channel_name):
+def embed_thumbnail(mp3_path, thumbnail_url):
     if not mp3_path.exists() or not thumbnail_url:
         return
     try:
@@ -110,11 +107,8 @@ def embed_thumbnail(mp3_path, thumbnail_url, video_title, channel_name):
                 data=img_data
             )
         )
-        audio.tags.add(TIT2(encoding=3, text=video_title))  # Title tag
-        audio.tags.add(TALB(encoding=3, text=video_title))  # Album tag
-        audio.tags.add(TPE1(encoding=3, text=channel_name))  # Artist tag
         audio.save()
-        logging.info(f"Embedded thumbnail and metadata into {mp3_path}")
+        logging.info(f"Embedded thumbnail into {mp3_path}")
     except Exception as e:
         logging.error(f"Failed to embed thumbnail: {e}")
 
@@ -125,7 +119,7 @@ def download_and_convert(channel, video_url):
     if not video_url:
         return None
     try:
-        result = subprocess.run([
+        subprocess.run([
             "yt-dlp",
             "-f", "bestaudio",
             "--output", str(TMP_DIR / f"{channel}.%(ext)s"),
@@ -136,10 +130,10 @@ def download_and_convert(channel, video_url):
             "--audio-format", "mp3",
             video_url
         ], check=True)
+        # Embed thumbnail if available
         thumbnail_url = VIDEO_CACHE.get(channel, {}).get("thumbnail")
-        video_title = VIDEO_CACHE.get(channel, {}).get("title", "Unknown Title")
         if thumbnail_url:
-            embed_thumbnail(final_path, thumbnail_url, video_title, channel)
+            embed_thumbnail(final_path, thumbnail_url)
         return final_path if final_path.exists() else None
     except Exception as e:
         logging.error(f"Error converting {channel}: {e}")
@@ -241,22 +235,6 @@ def stream_mp3(channel):
     headers['Content-Length'] = str(file_size)
     return Response(data, headers=headers)
 
-@app.route("/thumb/<channel>.jpg")
-def thumb(channel):
-    if channel not in CHANNELS:
-        return "Channel not found", 404
-
-    thumbnail_url = VIDEO_CACHE[channel].get("thumbnail", "")
-    if not thumbnail_url:
-        thumbnail_url = "https://via.placeholder.com/320x180?text=No+Thumbnail"
-
-    try:
-        r = requests.get(thumbnail_url, headers={"User-Agent": FIXED_USER_AGENT}, timeout=5)
-        return Response(r.content, content_type="image/jpeg")
-    except Exception as e:
-        logging.error(f"Error fetching thumbnail for {channel}: {e}")
-        return "Error loading thumbnail", 500
-
 @app.route("/")
 def index():
     html = """
@@ -272,10 +250,19 @@ def index():
         if not mp3_path.exists():
             continue
 
+        thumbnail = VIDEO_CACHE[channel].get("thumbnail", "")
+        if thumbnail:
+            # Force medium quality thumbnail
+            thumbnail = thumbnail.replace("maxresdefault", "mqdefault").replace("hqdefault", "mqdefault")
+
+        else:
+            # Fallback default thumbnail if missing
+            thumbnail = "https://via.placeholder.com/320x180?text=No+Thumbnail"
+
         upload_date = get_upload_date(channel)
         html += f"""
         <div style="margin-bottom:10px;">
-            <img src="/thumb/{channel}.jpg" style="width:160px;height:90px;object-fit:cover;">
+            <img src="{thumbnail}" style="width:160px;height:90px;object-fit:cover;">
             <br>
             <a href="/{channel}.mp3">{channel} ({upload_date})</a>
         </div>
