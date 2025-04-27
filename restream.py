@@ -5,11 +5,10 @@ import subprocess
 import logging
 import threading
 import requests
-from flask import Flask, Response, request, send_file
+from flask import Flask, Response, request
 from pathlib import Path
 from mutagen.mp3 import MP3
 from mutagen.id3 import ID3, APIC, TIT2, TALB, TPE1, error
-from io import BytesIO
 
 app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -23,8 +22,7 @@ EXPIRE_AGE = 7200             # 2 hours
 FIXED_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
 
 CHANNELS = {
-"ccm": "https://youtube.com/@cambridgecentralmosque",
-
+    "ccm": "https://youtube.com/@cambridgecentralmosque",
     "maheen": "https://youtube.com/@hitchhikingnomaad/videos",
     "entri": "https://youtube.com/@entriapp/videos",
     "zamzam": "https://youtube.com/@zamzamacademy/videos",
@@ -49,21 +47,14 @@ CHANNELS = {
     "movieworld": "https://youtube.com/@movieworldmalayalammovies/videos",
     "comedy": "https://youtube.com/@malayalamcomedyscene5334/videos",
     "studyiq": "https://youtube.com/@studyiqiasenglish/videos",
-"sreekanth": "https://youtube.com/@sreekanthvettiyar/videos",
-
-"jr": "https://youtube.com/@yesitsmejr/videos",
-
-"habib": "https://youtube.com/@habibomarcom/videos",
-
-"unacademy": "https://youtube.com/@unacademyiasenglish/videos",
-
-"eftguru": "https://youtube.com/@eftguru-ql8dk/videos",
-
-"anurag": "https://youtube.com/@anuragtalks1/videos",
-
-
-
+    "sreekanth": "https://youtube.com/@sreekanthvettiyar/videos",
+    "jr": "https://youtube.com/@yesitsmejr/videos",
+    "habib": "https://youtube.com/@habibomarcom/videos",
+    "unacademy": "https://youtube.com/@unacademyiasenglish/videos",
+    "eftguru": "https://youtube.com/@eftguru-ql8dk/videos",
+    "anurag": "https://youtube.com/@anuragtalks1/videos",
 }
+
 VIDEO_CACHE = {name: {"url": None, "last_checked": 0, "thumbnail": "", "upload_date": ""} for name in CHANNELS}
 LAST_VIDEO_ID = {name: None for name in CHANNELS}
 TMP_DIR = Path("/tmp/ytmp3")
@@ -81,13 +72,12 @@ def fetch_latest_video_url(name, channel_url):
         ], capture_output=True, text=True, check=True)
 
         data = json.loads(result.stdout)
-        logging.info(f"Fetched video data: {data}")  # Add this line to check the structure
-
         video = data["entries"][0]
         video_id = video["id"]
         thumbnail_url = video.get("thumbnail", "")
         upload_date = video.get("upload_date", "")
-        video_title = video.get("title", "Unknown")  # Check if title is properly extracted
+        video_title = video.get("title", "Unknown")
+        VIDEO_CACHE[name]["title"] = video_title
         return f"https://www.youtube.com/watch?v={video_id}", thumbnail_url, video_id, upload_date
     except Exception as e:
         logging.error(f"Error fetching video from {channel_url}: {e}")
@@ -112,9 +102,9 @@ def embed_thumbnail(mp3_path, thumbnail_url, video_title, channel_name):
                 data=img_data
             )
         )
-        audio.tags.add(TIT2(encoding=3, text=video_title))  # Title tag
-        audio.tags.add(TALB(encoding=3, text=video_title))  # Album tag
-        audio.tags.add(TPE1(encoding=3, text=channel_name))  # Artist tag
+        audio.tags.add(TIT2(encoding=3, text=video_title))
+        audio.tags.add(TALB(encoding=3, text=video_title))
+        audio.tags.add(TPE1(encoding=3, text=channel_name))
         audio.save()
         logging.info(f"Embedded thumbnail and metadata into {mp3_path}")
     except Exception as e:
@@ -127,7 +117,7 @@ def download_and_convert(channel, video_url):
     if not video_url:
         return None
     try:
-        result = subprocess.run([
+        subprocess.run([
             "yt-dlp",
             "-f", "bestaudio",
             "--output", str(TMP_DIR / f"{channel}.%(ext)s"),
@@ -195,7 +185,6 @@ def stream_mp3(channel):
         return "Channel not found", 404
 
     video_url = VIDEO_CACHE[channel].get("url")
-    upload_date = VIDEO_CACHE[channel].get("upload_date")
     if not video_url:
         video_url, thumbnail, video_id, upload_date = fetch_latest_video_url(channel, CHANNELS[channel])
         if not video_url:
@@ -243,53 +232,8 @@ def stream_mp3(channel):
     headers['Content-Length'] = str(file_size)
     return Response(data, headers=headers)
 
-@app.route("/thumb/<channel>.jpg")
-def thumb(channel):
-    if channel not in CHANNELS:
-        return "Channel not found", 404
-
-    thumbnail_url = VIDEO_CACHE[channel].get("thumbnail", "")
-    if not thumbnail_url:
-        thumbnail_url = "https://via.placeholder.com/320x180?text=No+Thumbnail"
-
-    try:
-        r = requests.get(thumbnail_url, headers={"User-Agent": FIXED_USER_AGENT}, timeout=5)
-        return Response(r.content, content_type="image/jpeg")
-    except Exception as e:
-        logging.error(f"Error fetching thumbnail for {channel}: {e}")
-        return "Error loading thumbnail", 500
-
-@app.route("/")
-def index():
-    html = """
-    <html><head><title>YouTube Mp3</title></head>
-    <body style="font-family:sans-serif; font-size:12px; background:#fff;">
-    <h3>YouTube Mp3</h3>
-    """
-    def get_upload_date(channel):
-        return VIDEO_CACHE[channel].get("upload_date", "Unknown")
-
-    for channel in sorted(CHANNELS, key=lambda x: get_upload_date(x), reverse=True):
-        mp3_path = TMP_DIR / f"{channel}.mp3"
-        if not mp3_path.exists():
-            continue
-
-        upload_date = get_upload_date(channel)
-        html += f"""
-        <div style="margin-bottom:10px;">
-            <img src="/thumb/{channel}.jpg" style="width:160px;height:90px;object-fit:cover;">
-            <br>
-            <a href="/{channel}.mp3">{channel} ({upload_date})</a>
-        </div>
-        """
-
-    html += "</body></html>"
-    return html
-
-# Start background tasks
-threading.Thread(target=update_video_cache_loop, daemon=True).start()
-threading.Thread(target=auto_download_mp3s, daemon=True).start()
-threading.Thread(target=cleanup_old_files, daemon=True).start()
-
 if __name__ == "__main__":
+    threading.Thread(target=update_video_cache_loop, daemon=True).start()
+    threading.Thread(target=auto_download_mp3s, daemon=True).start()
+    threading.Thread(target=cleanup_old_files, daemon=True).start()
     app.run(host="0.0.0.0", port=8000)
