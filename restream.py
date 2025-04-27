@@ -23,10 +23,15 @@ EXPIRE_AGE = 7200             # 2 hours
 FIXED_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
 
 CHANNELS = {
-    "dhruvrathee": "https://youtube.com/@dhruvrathee/videos",
-    "studyiq": "https://youtube.com/@studyiqiasenglish/videos",
-    "ccm": "https://youtube.com/@cambridgecentralmosque/videos",
-    "karikku": "https://youtube.com/@karikku_fresh/videos",
+
+"dhruvrathee": "https://youtube.com/@dhruvrathee/videos",
+
+"studyiq": "https://youtube.com/@studyiqiasenglish/videos",
+
+"ccm": "https://youtube.com/@cambridgecentralmosque/videos",
+
+"karikku": "https://youtube.com/@karikku_fresh/videos",
+
     "maheen": "https://youtube.com/@hitchhikingnomaad/videos",
     "entri": "https://youtube.com/@entriapp/videos",
     "zamzam": "https://youtube.com/@zamzamacademy/videos",
@@ -45,16 +50,26 @@ CHANNELS = {
     "vallathorukatha": "https://www.youtube.com/@babu_ramachandran/videos",
     "furqan": "https://youtube.com/@alfurqan4991/videos",
     "skicr": "https://youtube.com/@skicrtv/videos",
+    
     "safari": "https://youtube.com/@safaritvlive/videos",
     "sunnxt": "https://youtube.com/@sunnxtmalayalam/videos",
     "movieworld": "https://youtube.com/@movieworldmalayalammovies/videos",
     "comedy": "https://youtube.com/@malayalamcomedyscene5334/videos",
-    "sreekanth": "https://youtube.com/@sreekanthvettiyar/videos",
-    "jr": "https://youtube.com/@yesitsmejr/videos",
-    "habib": "https://youtube.com/@habibomarcom/videos",
-    "unacademy": "https://youtube.com/@unacademyiasenglish/videos",
-    "eftguru": "https://youtube.com/@eftguru-ql8dk/videos",
-    "anurag": "https://youtube.com/@anuragtalks1/videos",
+    
+"sreekanth": "https://youtube.com/@sreekanthvettiyar/videos",
+
+"jr": "https://youtube.com/@yesitsmejr/videos",
+
+"habib": "https://youtube.com/@habibomarcom/videos",
+
+"unacademy": "https://youtube.com/@unacademyiasenglish/videos",
+
+"eftguru": "https://youtube.com/@eftguru-ql8dk/videos",
+
+"anurag": "https://youtube.com/@anuragtalks1/videos",
+
+
+
 }
 
 VIDEO_CACHE = {name: {"url": None, "last_checked": 0, "thumbnail": "", "upload_date": ""} for name in CHANNELS}
@@ -254,14 +269,30 @@ def index():
     <body style="font-family:sans-serif; font-size:12px; background:#fff;">
     <h3>YouTube Mp3</h3>
     """
-    for name, url in CHANNELS.items():
-        html += f'<p><a href="/{name}.mp3">{name}</a></p>'
+    def get_upload_date(channel):
+        return VIDEO_CACHE[channel].get("upload_date", "Unknown")
+
+    for channel in sorted(CHANNELS, key=lambda x: get_upload_date(x), reverse=True):
+        mp3_path = TMP_DIR / f"{channel}.mp3"
+        if not mp3_path.exists():
+            continue
+
+        upload_date = get_upload_date(channel)
+        html += f"""
+        <div style="margin-bottom:10px;">
+            <img src="/thumb/{channel}.jpg" style="width:160px;height:90px;object-fit:cover;">
+            <br>
+            <a href="/{channel}.mp3">{channel} ({upload_date})</a>
+        </div>
+        """
+
     html += "</body></html>"
     return html
 
+# Start background tasks
+threading.Thread(target=update_video_cache_loop, daemon=True).start()
+threading.Thread(target=auto_download_mp3s, daemon=True).start()
+threading.Thread(target=cleanup_old_files, daemon=True).start()
+
 if __name__ == "__main__":
-    # Start the background threads
-    threading.Thread(target=update_video_cache_loop, daemon=True).start()
-    threading.Thread(target=auto_download_mp3s, daemon=True).start()
-    threading.Thread(target=cleanup_old_files, daemon=True).start()
     app.run(host="0.0.0.0", port=8000)
