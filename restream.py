@@ -81,11 +81,13 @@ def fetch_latest_video_url(name, channel_url):
         ], capture_output=True, text=True, check=True)
 
         data = json.loads(result.stdout)
+        logging.info(f"Fetched video data: {data}")  # Add this line to check the structure
+
         video = data["entries"][0]
         video_id = video["id"]
         thumbnail_url = video.get("thumbnail", "")
         upload_date = video.get("upload_date", "")
-        video_title = video.get("title", "Unknown")
+        video_title = video.get("title", "Unknown")  # Check if title is properly extracted
         return f"https://www.youtube.com/watch?v={video_id}", thumbnail_url, video_id, upload_date
     except Exception as e:
         logging.error(f"Error fetching video from {channel_url}: {e}")
