@@ -8,7 +8,7 @@ import requests
 from flask import Flask, Response, request, send_file
 from pathlib import Path
 from mutagen.mp3 import MP3
-from mutagen.id3 import ID3, APIC, error
+from mutagen.id3 import ID3, APIC, TIT2, TALB, TPE1, error
 from io import BytesIO
 
 app = Flask(__name__)
@@ -55,12 +55,13 @@ def fetch_latest_video_url(name, channel_url):
         video_id = video["id"]
         thumbnail_url = video.get("thumbnail", "")
         upload_date = video.get("upload_date", "")
-        return f"https://www.youtube.com/watch?v={video_id}", thumbnail_url, video_id, upload_date
+        video_title = video.get("title", "Unknown")
+        return f"https://www.youtube.com/watch?v={video_id}", thumbnail_url, video_id, upload_date, video_title
     except Exception as e:
         logging.error(f"Error fetching video from {channel_url}: {e}")
-        return None, None, None, None
+        return None, None, None, None, None
 
-def embed_thumbnail(mp3_path, thumbnail_url):
+def embed_thumbnail(mp3_path, thumbnail_url, video_title, channel_name):
     if not mp3_path.exists() or not thumbnail_url:
         return
     try:
@@ -79,8 +80,12 @@ def embed_thumbnail(mp3_path, thumbnail_url):
                 data=img_data
             )
         )
+        # Set Title, Album, and Artist tags
+        audio.tags.add(TIT2(encoding=3, text=video_title))  # Title tag
+        audio.tags.add(TALB(encoding=3, text=video_title))  # Album tag
+        audio.tags.add(TPE1(encoding=3, text=channel_name))  # Artist tag
         audio.save()
-        logging.info(f"Embedded thumbnail into {mp3_path}")
+        logging.info(f"Embedded thumbnail and metadata into {mp3_path}")
     except Exception as e:
         logging.error(f"Failed to embed thumbnail: {e}")
 
@@ -91,7 +96,7 @@ def download_and_convert(channel, video_url):
     if not video_url:
         return None
     try:
-        subprocess.run([
+        result = subprocess.run([
             "yt-dlp",
             "-f", "bestaudio",
             "--output", str(TMP_DIR / f"{channel}.%(ext)s"),
@@ -102,10 +107,11 @@ def download_and_convert(channel, video_url):
             "--audio-format", "mp3",
             video_url
         ], check=True)
-        # Embed thumbnail if available
+        # Embed thumbnail and metadata if available
         thumbnail_url = VIDEO_CACHE.get(channel, {}).get("thumbnail")
+        video_title = VIDEO_CACHE.get(channel, {}).get("title", "Unknown Title")
         if thumbnail_url:
-            embed_thumbnail(final_path, thumbnail_url)
+            embed_thumbnail(final_path, thumbnail_url, video_title, channel)
         return final_path if final_path.exists() else None
     except Exception as e:
         logging.error(f"Error converting {channel}: {e}")
