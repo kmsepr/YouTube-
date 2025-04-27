@@ -87,10 +87,12 @@ def fetch_latest_video_url(name, channel_url):
         thumbnail_url = video.get("thumbnail", "")
         upload_date = video.get("upload_date", "")
         video_title = video.get("title", "Unknown")
-        return f"https://www.youtube.com/watch?v={video_id}", thumbnail_url, video_id, upload_date, video_title
+        # Ensure exactly 4 values are returned
+        return f"https://www.youtube.com/watch?v={video_id}", thumbnail_url, video_id, upload_date
     except Exception as e:
         logging.error(f"Error fetching video from {channel_url}: {e}")
-        return None, None, None, None, None
+        # Return a tuple with exactly 4 values even on error
+        return None, None, None, None
 
 def embed_thumbnail(mp3_path, thumbnail_url, video_title, channel_name):
     if not mp3_path.exists() or not thumbnail_url:
