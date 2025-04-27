@@ -4,11 +4,8 @@ import json
 import subprocess
 import logging
 import threading
-import requests
 from flask import Flask, Response, request
 from pathlib import Path
-from mutagen.mp3 import MP3
-from mutagen.id3 import ID3, APIC, TIT2, TALB, TPE1, error
 
 app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -22,7 +19,6 @@ EXPIRE_AGE = 7200             # 2 hours
 FIXED_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
 
 CHANNELS = {
-    "ccm": "https://youtube.com/@cambridgecentralmosque",
     "maheen": "https://youtube.com/@hitchhikingnomaad/videos",
     "entri": "https://youtube.com/@entriapp/videos",
     "zamzam": "https://youtube.com/@zamzamacademy/videos",
@@ -47,12 +43,6 @@ CHANNELS = {
     "movieworld": "https://youtube.com/@movieworldmalayalammovies/videos",
     "comedy": "https://youtube.com/@malayalamcomedyscene5334/videos",
     "studyiq": "https://youtube.com/@studyiqiasenglish/videos",
-    "sreekanth": "https://youtube.com/@sreekanthvettiyar/videos",
-    "jr": "https://youtube.com/@yesitsmejr/videos",
-    "habib": "https://youtube.com/@habibomarcom/videos",
-    "unacademy": "https://youtube.com/@unacademyiasenglish/videos",
-    "eftguru": "https://youtube.com/@eftguru-ql8dk/videos",
-    "anurag": "https://youtube.com/@anuragtalks1/videos",
 }
 
 VIDEO_CACHE = {name: {"url": None, "last_checked": 0, "thumbnail": "", "upload_date": ""} for name in CHANNELS}
@@ -76,39 +66,10 @@ def fetch_latest_video_url(name, channel_url):
         video_id = video["id"]
         thumbnail_url = video.get("thumbnail", "")
         upload_date = video.get("upload_date", "")
-        video_title = video.get("title", "Unknown")
-        VIDEO_CACHE[name]["title"] = video_title
         return f"https://www.youtube.com/watch?v={video_id}", thumbnail_url, video_id, upload_date
     except Exception as e:
         logging.error(f"Error fetching video from {channel_url}: {e}")
         return None, None, None, None
-
-def embed_thumbnail(mp3_path, thumbnail_url, video_title, channel_name):
-    if not mp3_path.exists() or not thumbnail_url:
-        return
-    try:
-        img_data = requests.get(thumbnail_url).content
-        audio = MP3(mp3_path, ID3=ID3)
-        try:
-            audio.add_tags()
-        except error:
-            pass
-        audio.tags.add(
-            APIC(
-                encoding=3,
-                mime='image/jpeg',
-                type=3,
-                desc='Cover',
-                data=img_data
-            )
-        )
-        audio.tags.add(TIT2(encoding=3, text=video_title))
-        audio.tags.add(TALB(encoding=3, text=video_title))
-        audio.tags.add(TPE1(encoding=3, text=channel_name))
-        audio.save()
-        logging.info(f"Embedded thumbnail and metadata into {mp3_path}")
-    except Exception as e:
-        logging.error(f"Failed to embed thumbnail: {e}")
 
 def download_and_convert(channel, video_url):
     final_path = TMP_DIR / f"{channel}.mp3"
@@ -128,10 +89,6 @@ def download_and_convert(channel, video_url):
             "--audio-format", "mp3",
             video_url
         ], check=True)
-        thumbnail_url = VIDEO_CACHE.get(channel, {}).get("thumbnail")
-        video_title = VIDEO_CACHE.get(channel, {}).get("title", "Unknown Title")
-        if thumbnail_url:
-            embed_thumbnail(final_path, thumbnail_url, video_title, channel)
         return final_path if final_path.exists() else None
     except Exception as e:
         logging.error(f"Error converting {channel}: {e}")
@@ -185,6 +142,7 @@ def stream_mp3(channel):
         return "Channel not found", 404
 
     video_url = VIDEO_CACHE[channel].get("url")
+    upload_date = VIDEO_CACHE[channel].get("upload_date")
     if not video_url:
         video_url, thumbnail, video_id, upload_date = fetch_latest_video_url(channel, CHANNELS[channel])
         if not video_url:
@@ -232,8 +190,38 @@ def stream_mp3(channel):
     headers['Content-Length'] = str(file_size)
     return Response(data, headers=headers)
 
+@app.route("/")
+def index():
+    html = """
+    <html><head><title>YouTube Mp3</title></head>
+    <body style="font-family:sans-serif; font-size:12px; background:#fff;">
+    <h3>YouTube Mp3</h3>
+    """
+    def get_upload_date(channel):
+        return VIDEO_CACHE[channel].get("upload_date", "Unknown")
+
+    for channel in sorted(CHANNELS, key=lambda x: get_upload_date(x), reverse=True):
+        mp3_path = TMP_DIR / f"{channel}.mp3"
+        if not mp3_path.exists():
+            continue
+        thumbnail = VIDEO_CACHE[channel].get("thumbnail", "") or "https://via.placeholder.com/120x80?text=YT"
+        upload_date = get_upload_date(channel)
+        html += f"""
+        <div style="margin-bottom:12px; padding:6px; border:1px solid #ccc; border-radius:6px; width:160px;">
+            <img src="{thumbnail}" loading="lazy" style="width:100%; height:auto; display:block; margin-bottom:4px;" alt="{channel}">
+            <div style="text-align:center;">
+                <a href="/{channel}.mp3" style="color:#000; text-decoration:none;">{channel}</a><br>
+                <small>{upload_date}</small>
+            </div>
+        </div>
+        """
+    html += "</body></html>"
+    return html
+
+# Start background tasks
+threading.Thread(target=update_video_cache_loop, daemon=True).start()
+threading.Thread(target=auto_download_mp3s, daemon=True).start()
+threading.Thread(target=cleanup_old_files, daemon=True).start()
+
 if __name__ == "__main__":
-    threading.Thread(target=update_video_cache_loop, daemon=True).start()
-    threading.Thread(target=auto_download_mp3s, daemon=True).start()
-    threading.Thread(target=cleanup_old_files, daemon=True).start()
     app.run(host="0.0.0.0", port=8000)
