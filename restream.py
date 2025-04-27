@@ -23,53 +23,7 @@ EXPIRE_AGE = 7200             # 2 hours
 FIXED_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
 
 CHANNELS = {
-
-"dhruvrathee": "https://youtube.com/@dhruvrathee/videos",
-
-"studyiq": "https://youtube.com/@studyiqiasenglish/videos",
-
-"ccm": "https://youtube.com/@cambridgecentralmosque/videos",
-
-"karikku": "https://youtube.com/@karikku_fresh/videos",
-
-    "maheen": "https://youtube.com/@hitchhikingnomaad/videos",
-    "entri": "https://youtube.com/@entriapp/videos",
-    "zamzam": "https://youtube.com/@zamzamacademy/videos",
-    "jrstudio": "https://youtube.com/@jrstudiomalayalam/videos",
-    "raftalks": "https://youtube.com/@raftalksmalayalam/videos",
-    "parvinder": "https://www.youtube.com/@pravindersheoran/videos",
-    "qasimi": "https://www.youtube.com/@quranstudycentremukkam/videos",
-    "sharique": "https://youtube.com/@shariquesamsudheen/videos",
-    "drali": "https://youtube.com/@draligomaa/videos",
-    "yaqeen": "https://youtube.com/@yaqeeninstituteofficial/videos",
-    "talent": "https://youtube.com/@talentacademyonline/videos",
-    "vijayakumarblathur": "https://youtube.com/@vijayakumarblathur/videos",
-    "entridegree": "https://youtube.com/@entridegreelevelexams/videos",
-    "suprabhatam": "https://youtube.com/@suprabhaatham2023/videos",
-    "bayyinah": "https://youtube.com/@bayyinah/videos",
-    "vallathorukatha": "https://www.youtube.com/@babu_ramachandran/videos",
-    "furqan": "https://youtube.com/@alfurqan4991/videos",
-    "skicr": "https://youtube.com/@skicrtv/videos",
-    
-    "safari": "https://youtube.com/@safaritvlive/videos",
-    "sunnxt": "https://youtube.com/@sunnxtmalayalam/videos",
-    "movieworld": "https://youtube.com/@movieworldmalayalammovies/videos",
-    "comedy": "https://youtube.com/@malayalamcomedyscene5334/videos",
-    
-"sreekanth": "https://youtube.com/@sreekanthvettiyar/videos",
-
-"jr": "https://youtube.com/@yesitsmejr/videos",
-
-"habib": "https://youtube.com/@habibomarcom/videos",
-
-"unacademy": "https://youtube.com/@unacademyiasenglish/videos",
-
-"eftguru": "https://youtube.com/@eftguru-ql8dk/videos",
-
-"anurag": "https://youtube.com/@anuragtalks1/videos",
-
-
-
+    "dhruvrathee": "https://youtube.com/@dhruvrathee/videos",
 }
 
 VIDEO_CACHE = {name: {"url": None, "last_checked": 0, "thumbnail": "", "upload_date": ""} for name in CHANNELS}
@@ -140,7 +94,6 @@ def download_and_convert(channel, video_url):
             "--audio-format", "mp3",
             video_url
         ], check=True)
-        # Embed thumbnail if available
         thumbnail_url = VIDEO_CACHE.get(channel, {}).get("thumbnail")
         if thumbnail_url:
             embed_thumbnail(final_path, thumbnail_url)
@@ -213,37 +166,7 @@ def stream_mp3(channel):
     if not mp3_path or not mp3_path.exists():
         return "Error preparing stream", 500
 
-    file_size = os.path.getsize(mp3_path)
-    range_header = request.headers.get('Range', None)
-    headers = {
-        'Content-Type': 'audio/mpeg',
-        'Accept-Ranges': 'bytes',
-    }
-
-    if range_header:
-        try:
-            range_value = range_header.strip().split("=")[1]
-            byte1, byte2 = range_value.split("-")
-            byte1 = int(byte1)
-            byte2 = int(byte2) if byte2 else file_size - 1
-        except Exception as e:
-            return f"Invalid Range header: {e}", 400
-
-        length = byte2 - byte1 + 1
-        with open(mp3_path, 'rb') as f:
-            f.seek(byte1)
-            chunk = f.read(length)
-
-        headers.update({
-            'Content-Range': f'bytes {byte1}-{byte2}/{file_size}',
-            'Content-Length': str(length)
-        })
-        return Response(chunk, status=206, headers=headers)
-
-    with open(mp3_path, 'rb') as f:
-        data = f.read()
-    headers['Content-Length'] = str(file_size)
-    return Response(data, headers=headers)
+    return send_file(mp3_path, mimetype="audio/mpeg")
 
 @app.route("/thumb/<channel>.jpg")
 def thumb(channel):
