@@ -28,7 +28,9 @@ CHANNELS = {
 
 "studyiq": "https://youtube.com/@studyiqiasenglish/videos",
 
-"ccm": "https://youtube.com/@cambridgecentralmosque",
+"ccm": "https://youtube.com/@cambridgecentralmosque/videos",
+
+"karikku": "https://youtube.com/@karikku_fresh/videos",
 
     "maheen": "https://youtube.com/@hitchhikingnomaad/videos",
     "entri": "https://youtube.com/@entriapp/videos",
