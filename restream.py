@@ -22,14 +22,9 @@ EXPIRE_AGE = 7200             # 2 hours
 FIXED_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
 
 CHANNELS = {
-    "maheen": "https://youtube.com/@hitchhikingnomaad/videos",
-    "entri": "https://youtube.com/@entriapp/videos",
-    "zamzam": "https://youtube.com/@zamzamacademy/videos",
-    "jrstudio": "https://youtube.com/@jrstudiomalayalam/videos",
-    "raftalks": "https://youtube.com/@raftalksmalayalam/videos",
-    "parvinder": "https://www.youtube.com/@pravindersheoran/videos",
-    "qasimi": "https://www.youtube.com/@quranstudycentremukkam/videos",
-    "sharique": "https://youtube.com/@shariquesamsudheen/videos",
+    
+"dhruvrathee": "https://youtube.com/@dhruvrathee/videos",
+
     "drali": "https://youtube.com/@draligomaa/videos",
     "yaqeen": "https://youtube.com/@yaqeeninstituteofficial/videos",
     "talent": "https://youtube.com/@talentacademyonline/videos",
@@ -40,8 +35,18 @@ CHANNELS = {
     "vallathorukatha": "https://www.youtube.com/@babu_ramachandran/videos",
     "furqan": "https://youtube.com/@alfurqan4991/videos",
     "skicr": "https://youtube.com/@skicrtv/videos",
-    "dhruvrathee": "https://youtube.com/@dhruvrathee/videos",
+    
     "safari": "https://youtube.com/@safaritvlive/videos",
+
+"maheen": "https://youtube.com/@hitchhikingnomaad/videos",
+    "entri": "https://youtube.com/@entriapp/videos",
+    "zamzam": "https://youtube.com/@zamzamacademy/videos",
+    "jrstudio": "https://youtube.com/@jrstudiomalayalam/videos",
+    "raftalks": "https://youtube.com/@raftalksmalayalam/videos",
+    "parvinder": "https://www.youtube.com/@pravindersheoran/videos",
+    "qasimi": "https://www.youtube.com/@quranstudycentremukkam/videos",
+    "sharique": "https://youtube.com/@shariquesamsudheen/videos",
+
     "sunnxt": "https://youtube.com/@sunnxtmalayalam/videos",
     "movieworld": "https://youtube.com/@movieworldmalayalammovies/videos",
     "comedy": "https://youtube.com/@malayalamcomedyscene5334/videos",
