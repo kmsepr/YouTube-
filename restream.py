@@ -23,7 +23,7 @@ EXPIRE_AGE = 7200             # 2 hours
 FIXED_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
 
 CHANNELS = {
-"ccm": "https://youtube.com/@cambridgecentralmosque",
+   "ccm":   "https://youtube.com/@cambridgecentralmosque/videos",
 
     "maheen": "https://youtube.com/@hitchhikingnomaad/videos",
     "entri": "https://youtube.com/@entriapp/videos",
@@ -64,7 +64,6 @@ CHANNELS = {
 
 
 }
-
 VIDEO_CACHE = {name: {"url": None, "last_checked": 0, "thumbnail": "", "upload_date": ""} for name in CHANNELS}
 LAST_VIDEO_ID = {name: None for name in CHANNELS}
 TMP_DIR = Path("/tmp/ytmp3")
@@ -87,11 +86,9 @@ def fetch_latest_video_url(name, channel_url):
         thumbnail_url = video.get("thumbnail", "")
         upload_date = video.get("upload_date", "")
         video_title = video.get("title", "Unknown")
-        # Ensure exactly 4 values are returned
         return f"https://www.youtube.com/watch?v={video_id}", thumbnail_url, video_id, upload_date
     except Exception as e:
         logging.error(f"Error fetching video from {channel_url}: {e}")
-        # Return a tuple with exactly 4 values even on error
         return None, None, None, None
 
 def embed_thumbnail(mp3_path, thumbnail_url, video_title, channel_name):
@@ -113,7 +110,6 @@ def embed_thumbnail(mp3_path, thumbnail_url, video_title, channel_name):
                 data=img_data
             )
         )
-        # Set Title, Album, and Artist tags
         audio.tags.add(TIT2(encoding=3, text=video_title))  # Title tag
         audio.tags.add(TALB(encoding=3, text=video_title))  # Album tag
         audio.tags.add(TPE1(encoding=3, text=channel_name))  # Artist tag
@@ -140,7 +136,6 @@ def download_and_convert(channel, video_url):
             "--audio-format", "mp3",
             video_url
         ], check=True)
-        # Embed thumbnail and metadata if available
         thumbnail_url = VIDEO_CACHE.get(channel, {}).get("thumbnail")
         video_title = VIDEO_CACHE.get(channel, {}).get("title", "Unknown Title")
         if thumbnail_url:
@@ -248,7 +243,6 @@ def stream_mp3(channel):
 
 @app.route("/thumb/<channel>.jpg")
 def thumb(channel):
-    """Serve the thumbnail image as proxy"""
     if channel not in CHANNELS:
         return "Channel not found", 404
 
