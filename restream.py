@@ -4,11 +4,11 @@ import json
 import subprocess
 import logging
 import threading
-import requests
-from flask import Flask, Response, request
+from flask import Flask, Response, request, send_file
 from pathlib import Path
-from mutagen.mp3 import MP3
-from mutagen.id3 import ID3, APIC, error
+import requests
+import eyed3
+from io import BytesIO
 
 app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -18,10 +18,11 @@ REFRESH_INTERVAL = 1200       # 20 minutes
 RECHECK_INTERVAL = 3600       # 60 minutes
 EXPIRE_AGE = 7200             # 2 hours
 
-# Fixed user agent
 FIXED_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
 
 CHANNELS = {
+
+   "mediaone": "https://youtube.com/@mediaonetvlive/videos",
     "maheen": "https://youtube.com/@hitchhikingnomaad/videos",
     "entri": "https://youtube.com/@entriapp/videos",
     "zamzam": "https://youtube.com/@zamzamacademy/videos",
@@ -46,20 +47,6 @@ CHANNELS = {
     "movieworld": "https://youtube.com/@movieworldmalayalammovies/videos",
     "comedy": "https://youtube.com/@malayalamcomedyscene5334/videos",
     "studyiq": "https://youtube.com/@studyiqiasenglish/videos",
-"sreekanth": "https://youtube.com/@sreekanthvettiyar/videos",
-
-"jr": "https://youtube.com/@yesitsmejr/videos",
-
-"habib": "https://youtube.com/@habibomarcom/videos",
-
-"unacademy": "https://youtube.com/@unacademyiasenglish/videos",
-
-"eftguru": "https://youtube.com/@eftguru-ql8dk/videos",
-
-"anurag": "https://youtube.com/@anuragtalks1/videos",
-
-
-
 }
 
 VIDEO_CACHE = {name: {"url": None, "last_checked": 0, "thumbnail": "", "upload_date": ""} for name in CHANNELS}
@@ -70,9 +57,7 @@ TMP_DIR.mkdir(exist_ok=True)
 def fetch_latest_video_url(name, channel_url):
     try:
         result = subprocess.run([
-            "yt-dlp",
-            "--dump-single-json",
-            "--playlist-end", "1",
+            "yt-dlp", "--dump-single-json", "--playlist-end", "1",
             "--cookies", "/mnt/data/cookies.txt",
             "--user-agent", FIXED_USER_AGENT,
             channel_url
@@ -88,30 +73,6 @@ def fetch_latest_video_url(name, channel_url):
         logging.error(f"Error fetching video from {channel_url}: {e}")
         return None, None, None, None
 
-def embed_thumbnail(mp3_path, thumbnail_url):
-    if not mp3_path.exists() or not thumbnail_url:
-        return
-    try:
-        img_data = requests.get(thumbnail_url).content
-        audio = MP3(mp3_path, ID3=ID3)
-        try:
-            audio.add_tags()
-        except error:
-            pass
-        audio.tags.add(
-            APIC(
-                encoding=3,
-                mime='image/jpeg',
-                type=3,
-                desc='Cover',
-                data=img_data
-            )
-        )
-        audio.save()
-        logging.info(f"Embedded thumbnail into {mp3_path}")
-    except Exception as e:
-        logging.error(f"Failed to embed thumbnail: {e}")
-
 def download_and_convert(channel, video_url):
     final_path = TMP_DIR / f"{channel}.mp3"
     if final_path.exists():
@@ -120,8 +81,7 @@ def download_and_convert(channel, video_url):
         return None
     try:
         subprocess.run([
-            "yt-dlp",
-            "-f", "bestaudio",
+            "yt-dlp", "-f", "bestaudio",
             "--output", str(TMP_DIR / f"{channel}.%(ext)s"),
             "--cookies", "/mnt/data/cookies.txt",
             "--user-agent", FIXED_USER_AGENT,
@@ -130,10 +90,16 @@ def download_and_convert(channel, video_url):
             "--audio-format", "mp3",
             video_url
         ], check=True)
-        # Embed thumbnail if available
-        thumbnail_url = VIDEO_CACHE.get(channel, {}).get("thumbnail")
-        if thumbnail_url:
-            embed_thumbnail(final_path, thumbnail_url)
+
+        # Add metadata using eyed3
+        mp3_file = TMP_DIR / f"{channel}.mp3"
+        if mp3_file.exists():
+            audio_file = eyed3.load(mp3_file)
+            audio_file.tag.artist = channel
+            audio_file.tag.title = f"Latest Video from {channel}"
+            audio_file.tag.album = "YouTube Channel Audio"
+            audio_file.tag.save()
+
         return final_path if final_path.exists() else None
     except Exception as e:
         logging.error(f"Error converting {channel}: {e}")
@@ -180,6 +146,22 @@ def auto_download_mp3s():
                     download_and_convert(name, video_url)
             time.sleep(3)
         time.sleep(RECHECK_INTERVAL)
+
+@app.route("/thumbnail_proxy")
+def thumbnail_proxy():
+    url = request.args.get("url")
+    if not url:
+        return "Missing URL", 400
+    try:
+        headers = {"User-Agent": FIXED_USER_AGENT}
+        resp = requests.get(url, headers=headers, timeout=5)
+        if resp.status_code == 200:
+            return send_file(BytesIO(resp.content), mimetype='image/jpeg')
+        else:
+            return "Failed to fetch image", 502
+    except Exception as e:
+        logging.error(f"Thumbnail proxy error: {e}")
+        return "Error fetching image", 500
 
 @app.route("/<channel>.mp3")
 def stream_mp3(channel):
@@ -249,25 +231,17 @@ def index():
         mp3_path = TMP_DIR / f"{channel}.mp3"
         if not mp3_path.exists():
             continue
-
-        thumbnail = VIDEO_CACHE[channel].get("thumbnail", "")
-        if thumbnail:
-            # Force medium quality thumbnail
-            thumbnail = thumbnail.replace("maxresdefault", "mqdefault").replace("hqdefault", "mqdefault")
-
-        else:
-            # Fallback default thumbnail if missing
-            thumbnail = "https://via.placeholder.com/320x180?text=No+Thumbnail"
-
+        thumbnail = VIDEO_CACHE[channel].get("thumbnail", "") or "https://via.placeholder.com/120x80?text=YT"
         upload_date = get_upload_date(channel)
         html += f"""
-        <div style="margin-bottom:10px;">
-            <img src="{thumbnail}" style="width:160px;height:90px;object-fit:cover;">
-            <br>
-            <a href="/{channel}.mp3">{channel} ({upload_date})</a>
+        <div style="margin-bottom:12px; padding:6px; border:1px solid #ccc; border-radius:6px; width:160px;">
+            <img src="/thumbnail_proxy?url={thumbnail}" loading="lazy" style="width:100%; height:auto; display:block; margin-bottom:4px;" alt="{channel}">
+            <div style="text-align:center;">
+                <a href="/{channel}.mp3" style="color:#000; text-decoration:none;">{channel}</a><br>
+                <small>{upload_date}</small>
+            </div>
         </div>
         """
-
     html += "</body></html>"
     return html
 
