@@ -5,11 +5,10 @@ import subprocess
 import logging
 import threading
 import requests
-from flask import Flask, Response, request, send_file
+from flask import Flask, Response, request
 from pathlib import Path
 from mutagen.mp3 import MP3
 from mutagen.id3 import ID3, APIC, error
-from io import BytesIO
 
 app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -23,15 +22,6 @@ EXPIRE_AGE = 7200             # 2 hours
 FIXED_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
 
 CHANNELS = {
-
-"dhruvrathee": "https://youtube.com/@dhruvrathee/videos",
-
-"studyiq": "https://youtube.com/@studyiqiasenglish/videos",
-
-"ccm": "https://youtube.com/@cambridgecentralmosque/videos",
-
-"karikku": "https://youtube.com/@karikku_fresh/videos",
-
     "maheen": "https://youtube.com/@hitchhikingnomaad/videos",
     "entri": "https://youtube.com/@entriapp/videos",
     "zamzam": "https://youtube.com/@zamzamacademy/videos",
@@ -50,12 +40,12 @@ CHANNELS = {
     "vallathorukatha": "https://www.youtube.com/@babu_ramachandran/videos",
     "furqan": "https://youtube.com/@alfurqan4991/videos",
     "skicr": "https://youtube.com/@skicrtv/videos",
-    
+    "dhruvrathee": "https://youtube.com/@dhruvrathee/videos",
     "safari": "https://youtube.com/@safaritvlive/videos",
     "sunnxt": "https://youtube.com/@sunnxtmalayalam/videos",
     "movieworld": "https://youtube.com/@movieworldmalayalammovies/videos",
     "comedy": "https://youtube.com/@malayalamcomedyscene5334/videos",
-    
+    "studyiq": "https://youtube.com/@studyiqiasenglish/videos",
 "sreekanth": "https://youtube.com/@sreekanthvettiyar/videos",
 
 "jr": "https://youtube.com/@yesitsmejr/videos",
@@ -245,23 +235,6 @@ def stream_mp3(channel):
     headers['Content-Length'] = str(file_size)
     return Response(data, headers=headers)
 
-@app.route("/thumb/<channel>.jpg")
-def thumb(channel):
-    """Serve the thumbnail image as proxy"""
-    if channel not in CHANNELS:
-        return "Channel not found", 404
-
-    thumbnail_url = VIDEO_CACHE[channel].get("thumbnail", "")
-    if not thumbnail_url:
-        thumbnail_url = "https://via.placeholder.com/320x180?text=No+Thumbnail"
-
-    try:
-        r = requests.get(thumbnail_url, headers={"User-Agent": FIXED_USER_AGENT}, timeout=5)
-        return Response(r.content, content_type="image/jpeg")
-    except Exception as e:
-        logging.error(f"Error fetching thumbnail for {channel}: {e}")
-        return "Error loading thumbnail", 500
-
 @app.route("/")
 def index():
     html = """
@@ -277,10 +250,19 @@ def index():
         if not mp3_path.exists():
             continue
 
+        thumbnail = VIDEO_CACHE[channel].get("thumbnail", "")
+        if thumbnail:
+            # Force medium quality thumbnail
+            thumbnail = thumbnail.replace("maxresdefault", "mqdefault").replace("hqdefault", "mqdefault")
+
+        else:
+            # Fallback default thumbnail if missing
+            thumbnail = "https://via.placeholder.com/320x180?text=No+Thumbnail"
+
         upload_date = get_upload_date(channel)
         html += f"""
         <div style="margin-bottom:10px;">
-            <img src="/thumb/{channel}.jpg" style="width:160px;height:90px;object-fit:cover;">
+            <img src="{thumbnail}" style="width:160px;height:90px;object-fit:cover;">
             <br>
             <a href="/{channel}.mp3">{channel} ({upload_date})</a>
         </div>
