@@ -264,14 +264,11 @@ def thumb(channel):
 
 @app.route("/")
 def index():
-    html = [
-        "<!DOCTYPE html><html><head><title>YouTube MP3</title>",
-        '<meta name="viewport" content="width=device-width, initial-scale=1">',
-        "<style>body{font-family:sans-serif;font-size:14px;background:#fff;margin:10px;}img{width:160px;height:90px;object-fit:cover;display:block;margin-bottom:5px;}a{color:#00f;text-decoration:none;display:block;margin-bottom:15px;}</style>",
-        "</head><body>",
-        "<h3>YouTube MP3</h3>"
-    ]
-
+    html = """
+    <html><head><title>YouTube Mp3</title></head>
+    <body style="font-family:sans-serif; font-size:12px; background:#fff;">
+    <h3>YouTube Mp3</h3>
+    """
     def get_upload_date(channel):
         return VIDEO_CACHE[channel].get("upload_date", "Unknown")
 
@@ -281,12 +278,16 @@ def index():
             continue
 
         upload_date = get_upload_date(channel)
-        html.append(f'<a href="/{channel}.mp3">'
-                    f'<img src="/thumb/{channel}.jpg" alt="{channel}">'
-                    f'{channel} ({upload_date})</a>')
+        html += f"""
+        <div style="margin-bottom:10px;">
+            <img src="/thumb/{channel}.jpg" style="width:160px;height:90px;object-fit:cover;">
+            <br>
+            <a href="/{channel}.mp3">{channel} ({upload_date})</a>
+        </div>
+        """
 
-    html.append("</body></html>")
-    return "\n".join(html)
+    html += "</body></html>"
+    return html
 
 # Start background tasks
 threading.Thread(target=update_video_cache_loop, daemon=True).start()
