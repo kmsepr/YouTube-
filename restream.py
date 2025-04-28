@@ -23,7 +23,7 @@ FIXED_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
 CHANNELS = {
 
 "mediaone": "https://youtube.com/@mediaonetvlive/videos",
-"ccm": "https://youtube.com/@cambridgecentralmosque",
+"ccm": "https://youtube.com/@cambridgecentralmosque/videos",
 
 "jrstudio": "https://youtube.com/@jrstudiomalayalam/videos",
     "raftalks": "https://youtube.com/@raftalksmalayalam/videos",
