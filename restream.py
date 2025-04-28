@@ -22,15 +22,28 @@ FIXED_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
 
 CHANNELS = {
 
-   "mediaone": "https://youtube.com/@mediaonetvlive/videos",
-    "maheen": "https://youtube.com/@hitchhikingnomaad/videos",
-    "entri": "https://youtube.com/@entriapp/videos",
-    "zamzam": "https://youtube.com/@zamzamacademy/videos",
-    "jrstudio": "https://youtube.com/@jrstudiomalayalam/videos",
+"mediaone": "https://youtube.com/@mediaonetvlive/videos",
+"ccm": "https://youtube.com/@cambridgecentralmosque",
+
+"jrstudio": "https://youtube.com/@jrstudiomalayalam/videos",
     "raftalks": "https://youtube.com/@raftalksmalayalam/videos",
     "parvinder": "https://www.youtube.com/@pravindersheoran/videos",
     "qasimi": "https://www.youtube.com/@quranstudycentremukkam/videos",
     "sharique": "https://youtube.com/@shariquesamsudheen/videos",
+
+    "maheen": "https://youtube.com/@hitchhikingnomaad/videos",
+    "entri": "https://youtube.com/@entriapp/videos",
+    "zamzam": "https://youtube.com/@zamzamacademy/videos",
+
+
+"habib": "https://youtube.com/@habibomarcom/videos",
+
+"unacademy": "https://youtube.com/@unacademyiasenglish/videos",
+
+"eftguru": "https://youtube.com/@eftguru-ql8dk/videos",
+
+"anurag": "https://youtube.com/@anuragtalks1/videos",
+    
     "drali": "https://youtube.com/@draligomaa/videos",
     "yaqeen": "https://youtube.com/@yaqeeninstituteofficial/videos",
     "talent": "https://youtube.com/@talentacademyonline/videos",
@@ -47,6 +60,12 @@ CHANNELS = {
     "movieworld": "https://youtube.com/@movieworldmalayalammovies/videos",
     "comedy": "https://youtube.com/@malayalamcomedyscene5334/videos",
     "studyiq": "https://youtube.com/@studyiqiasenglish/videos",
+"sreekanth": "https://youtube.com/@sreekanthvettiyar/videos",
+
+"jr": "https://youtube.com/@yesitsmejr/videos",
+
+
+
 }
 
 VIDEO_CACHE = {name: {"url": None, "last_checked": 0, "thumbnail": "", "upload_date": ""} for name in CHANNELS}
