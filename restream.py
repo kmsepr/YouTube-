@@ -4,13 +4,8 @@ import json
 import subprocess
 import logging
 import threading
-from flask import Flask, Response, request, send_file
+from flask import Flask, Response, request
 from pathlib import Path
-import requests
-import eyed3
-from io import BytesIO
-from PIL import Image
-import io
 
 app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -20,32 +15,18 @@ REFRESH_INTERVAL = 1200       # 20 minutes
 RECHECK_INTERVAL = 3600       # 60 minutes
 EXPIRE_AGE = 7200             # 2 hours
 
+# Fixed user agent
 FIXED_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
 
 CHANNELS = {
-
-"mediaone": "https://youtube.com/@mediaonetvlive/videos",
-"ccm": "https://youtube.com/@cambridgecentralmosque/videos",
-
-"jrstudio": "https://youtube.com/@jrstudiomalayalam/videos",
+    "maheen": "https://youtube.com/@hitchhikingnomaad/videos",
+    "entri": "https://youtube.com/@entriapp/videos",
+    "zamzam": "https://youtube.com/@zamzamacademy/videos",
+    "jrstudio": "https://youtube.com/@jrstudiomalayalam/videos",
     "raftalks": "https://youtube.com/@raftalksmalayalam/videos",
     "parvinder": "https://www.youtube.com/@pravindersheoran/videos",
     "qasimi": "https://www.youtube.com/@quranstudycentremukkam/videos",
     "sharique": "https://youtube.com/@shariquesamsudheen/videos",
-
-    "maheen": "https://youtube.com/@hitchhikingnomaad/videos",
-    "entri": "https://youtube.com/@entriapp/videos",
-    "zamzam": "https://youtube.com/@zamzamacademy/videos",
-
-
-"habib": "https://youtube.com/@habibomarcom/videos",
-
-"unacademy": "https://youtube.com/@unacademyiasenglish/videos",
-
-"eftguru": "https://youtube.com/@eftguru-ql8dk/videos",
-
-"anurag": "https://youtube.com/@anuragtalks1/videos",
-    
     "drali": "https://youtube.com/@draligomaa/videos",
     "yaqeen": "https://youtube.com/@yaqeeninstituteofficial/videos",
     "talent": "https://youtube.com/@talentacademyonline/videos",
@@ -62,12 +43,6 @@ CHANNELS = {
     "movieworld": "https://youtube.com/@movieworldmalayalammovies/videos",
     "comedy": "https://youtube.com/@malayalamcomedyscene5334/videos",
     "studyiq": "https://youtube.com/@studyiqiasenglish/videos",
-"sreekanth": "https://youtube.com/@sreekanthvettiyar/videos",
-
-"jr": "https://youtube.com/@yesitsmejr/videos",
-
-
-
 }
 
 VIDEO_CACHE = {name: {"url": None, "last_checked": 0, "thumbnail": "", "upload_date": ""} for name in CHANNELS}
@@ -78,7 +53,9 @@ TMP_DIR.mkdir(exist_ok=True)
 def fetch_latest_video_url(name, channel_url):
     try:
         result = subprocess.run([
-            "yt-dlp", "--dump-single-json", "--playlist-end", "1",
+            "yt-dlp",
+            "--dump-single-json",
+            "--playlist-end", "1",
             "--cookies", "/mnt/data/cookies.txt",
             "--user-agent", FIXED_USER_AGENT,
             channel_url
@@ -102,7 +79,8 @@ def download_and_convert(channel, video_url):
         return None
     try:
         subprocess.run([
-            "yt-dlp", "-f", "bestaudio",
+            "yt-dlp",
+            "-f", "bestaudio",
             "--output", str(TMP_DIR / f"{channel}.%(ext)s"),
             "--cookies", "/mnt/data/cookies.txt",
             "--user-agent", FIXED_USER_AGENT,
@@ -111,16 +89,6 @@ def download_and_convert(channel, video_url):
             "--audio-format", "mp3",
             video_url
         ], check=True)
-
-        # Add metadata using eyed3
-        mp3_file = TMP_DIR / f"{channel}.mp3"
-        if mp3_file.exists():
-            audio_file = eyed3.load(mp3_file)
-            audio_file.tag.artist = channel
-            audio_file.tag.title = f"Latest Video from {channel}"
-            audio_file.tag.album = "YouTube Channel Audio"
-            audio_file.tag.save()
-
         return final_path if final_path.exists() else None
     except Exception as e:
         logging.error(f"Error converting {channel}: {e}")
@@ -167,29 +135,6 @@ def auto_download_mp3s():
                     download_and_convert(name, video_url)
             time.sleep(3)
         time.sleep(RECHECK_INTERVAL)
-
-
-
-@app.route("/thumbnail_proxy")
-def thumbnail_proxy():
-    url = request.args.get("url")
-    if not url:
-        return "Missing URL", 400
-    try:
-        headers = {"User-Agent": FIXED_USER_AGENT}
-        resp = requests.get(url, headers=headers, timeout=5)
-        if resp.status_code == 200:
-            # Convert image to JPEG for Symbian compatibility
-            img = Image.open(BytesIO(resp.content)).convert("RGB")
-            output = BytesIO()
-            img.save(output, format="JPEG", quality=85)
-            output.seek(0)
-            return send_file(output, mimetype="image/jpeg")
-        else:
-            return "Failed to fetch image", 502
-    except Exception as e:
-        logging.error(f"Thumbnail proxy error: {e}")
-        return "Error fetching image", 500
 
 @app.route("/<channel>.mp3")
 def stream_mp3(channel):
@@ -263,7 +208,7 @@ def index():
         upload_date = get_upload_date(channel)
         html += f"""
         <div style="margin-bottom:12px; padding:6px; border:1px solid #ccc; border-radius:6px; width:160px;">
-            <img src="/thumbnail_proxy?url={thumbnail}" loading="lazy" style="width:100%; height:auto; display:block; margin-bottom:4px;" alt="{channel}">
+            <img src="{thumbnail}" loading="lazy" style="width:100%; height:auto; display:block; margin-bottom:4px;" alt="{channel}">
             <div style="text-align:center;">
                 <a href="/{channel}.mp3" style="color:#000; text-decoration:none;">{channel}</a><br>
                 <small>{upload_date}</small>
