@@ -4,3 +4,4 @@ requests
 unidecode
 eyed3
 mutagen
+pillow
