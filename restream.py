@@ -9,6 +9,8 @@ from pathlib import Path
 import requests
 import eyed3
 from io import BytesIO
+from PIL import Image
+import io
 
 app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -166,6 +168,8 @@ def auto_download_mp3s():
             time.sleep(3)
         time.sleep(RECHECK_INTERVAL)
 
+
+
 @app.route("/thumbnail_proxy")
 def thumbnail_proxy():
     url = request.args.get("url")
@@ -175,7 +179,12 @@ def thumbnail_proxy():
         headers = {"User-Agent": FIXED_USER_AGENT}
         resp = requests.get(url, headers=headers, timeout=5)
         if resp.status_code == 200:
-            return send_file(BytesIO(resp.content), mimetype='image/jpeg')
+            # Convert image to JPEG for Symbian compatibility
+            img = Image.open(BytesIO(resp.content)).convert("RGB")
+            output = BytesIO()
+            img.save(output, format="JPEG", quality=85)
+            output.seek(0)
+            return send_file(output, mimetype="image/jpeg")
         else:
             return "Failed to fetch image", 502
     except Exception as e:
