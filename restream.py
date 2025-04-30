@@ -77,18 +77,49 @@ def download_and_convert(channel, video_url):
         return final_path
     if not video_url:
         return None
+
     try:
+        base_path = TMP_DIR / channel
+        audio_path = base_path.with_suffix(".webm")  # Temporary audio file
+        thumb_path = base_path.with_suffix(".jpg")   # Thumbnail file
+
+        # Step 1: Download best audio + thumbnail
         subprocess.run([
             "yt-dlp",
             "-f", "bestaudio",
-            "--output", str(TMP_DIR / f"{channel}.%(ext)s"),
+            "--output", str(base_path) + ".%(ext)s",
+            "--write-thumbnail",
+            "--convert-thumbnails", "jpg",
             "--cookies", "/mnt/data/cookies.txt",
             "--user-agent", FIXED_USER_AGENT,
-            "--postprocessor-args", "-ar 22050 -ac 1 -b:a 40k",
-            "--extract-audio",
-            "--audio-format", "mp3",
             video_url
         ], check=True)
+
+        if not audio_path.exists() or not thumb_path.exists():
+            logging.error(f"Missing audio or thumbnail for {channel}")
+            return None
+
+        # Step 2: Use ffmpeg to embed thumbnail into MP3
+        subprocess.run([
+            "ffmpeg", "-y",
+            "-i", str(audio_path),
+            "-i", str(thumb_path),
+            "-map", "0:a",
+            "-map", "1:v",
+            "-c:a", "libmp3lame",
+            "-b:a", "40k",
+            "-ar", "22050",
+            "-ac", "1",
+            "-id3v2_version", "3",
+            "-metadata:s:v", "title=Album cover",
+            "-metadata:s:v", "comment=Cover (front)",
+            str(final_path)
+        ], check=True)
+
+        # Cleanup temp files
+        audio_path.unlink(missing_ok=True)
+        thumb_path.unlink(missing_ok=True)
+
         return final_path if final_path.exists() else None
     except Exception as e:
         logging.error(f"Error converting {channel}: {e}")
