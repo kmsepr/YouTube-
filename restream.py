@@ -108,6 +108,8 @@ def download_and_convert(channel, video_url):
             "-i", str(thumb_path),
             "-map", "0:a",
             "-map", "1:v",
+            "-disposition:v",    
+       "attached_pic",
             "-c:a", "libmp3lame",
             "-b:a", "40k",
             "-ar", "22050",
