@@ -284,7 +284,7 @@ def index():
         mp3_path = TMP_DIR / f"{channel}.mp3"
         if not mp3_path.exists():
             continue
-        thumbnail = VIDEO_CACHE[channel].get("thumbnail", "") or "https://via.placeholder.com/120x80?text=YT"
+        thumbnail = (VIDEO_CACHE[channel].get("thumbnail", "") or "http://via.placeholder.com/120x80?text=YT").replace("https://", "http://")
         upload_date = get_upload_date(channel)
         html += f"""
         <div style="margin-bottom:12px; padding:6px; border:1px solid #ccc; border-radius:6px; width:160px;">
