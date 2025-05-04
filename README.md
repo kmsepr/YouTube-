@@ -11,7 +11,7 @@ Perfect for low-bandwidth audio access to YouTube content — especially useful 
 ### Features
 
 - Streams audio from the latest uploaded video (not live)
-- Transcodes audio to MP3 (mono, 64 kbps) using `ffmpeg`
+- Transcodes audio to MP3 (mono, 40 kbps) using `ffmpeg`
 - Automatically refreshes every 30 minutes
 - Simple route pattern: `/channel_name.mp3`
 - Optimized for older phones and minimal media players
