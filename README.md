@@ -4,13 +4,13 @@
 
 A lightweight Flask application that streams audio (MP3) from the most recent uploaded video of selected YouTube channels using `yt-dlp` and `ffmpeg`.
 
-Perfect for low-bandwidth audio access to YouTube content — especially useful for older devices (like Symbian phones with CorePlayer) or embedded systems.
+Tested in Nokia Java phones & Choyong radio
 
 ---
 
 ### Features
 
-- Streams audio from the latest uploaded video (not live)
+- Streams audio from the latest uploaded video
 - Transcodes audio to MP3 (mono, 40 kbps) using `ffmpeg`
 - Automatically refreshes every 30 minutes
 - Simple route pattern: `/channel_name.mp3`
