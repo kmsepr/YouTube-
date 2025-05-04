@@ -1,7 +1,2 @@
 flask
 yt-dlp
-requests
-unidecode
-eyed3
-mutagen
-pillow
