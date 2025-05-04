@@ -146,6 +146,7 @@ def download_and_convert(channel, video_url):
             "-map", "0:a",
             "-map", "1:v",
             "-c:a", "libmp3lame",
+            "-c:v", "mjpeg",
             "-b:a", "40k",
             "-ar", "22050",
             "-ac", "1",
@@ -153,8 +154,7 @@ def download_and_convert(channel, video_url):
             "-metadata", f"title={title}",
             "-metadata", f"album={album}",
             "-metadata", f"artist={artist}",
-            "-metadata:s:v", "title=Album cover",
-            "-metadata:s:v", "comment=Cover (front)",
+            "-disposition:v", "attached_pic",
             str(final_path)
         ], check=True)
 
