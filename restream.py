@@ -147,7 +147,7 @@ def download_and_convert(channel, video_url):
             "-map", "1:v",
             "-c:a", "libmp3lame",
             "-c:v", "mjpeg",
-            "-b:a", "40k",
+            "-b:a", "24k",
             "-ar", "22050",
             "-ac", "1",
             "-id3v2_version", "3",
