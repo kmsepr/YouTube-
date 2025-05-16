@@ -20,8 +20,7 @@ EXPIRE_AGE = 7200             # 2 hours
 FIXED_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
 
 CHANNELS = {
-"ccm": "https://youtube.com/@cambridgecentralmosque",
-
+    "ccm": "https://youtube.com/@cambridgecentralmosque",
     "maheen": "https://youtube.com/@hitchhikingnomaad/videos",
     "entri": "https://youtube.com/@entriapp/videos",
     "zamzam": "https://youtube.com/@zamzamacademy/videos",
@@ -46,20 +45,12 @@ CHANNELS = {
     "movieworld": "https://youtube.com/@movieworldmalayalammovies/videos",
     "comedy": "https://youtube.com/@malayalamcomedyscene5334/videos",
     "studyiq": "https://youtube.com/@studyiqiasenglish/videos",
-"sreekanth": "https://youtube.com/@sreekanthvettiyar/videos",
-
-"jr": "https://youtube.com/@yesitsmejr/videos",
-
-"habib": "https://youtube.com/@habibomarcom/videos",
-
-"unacademy": "https://youtube.com/@unacademyiasenglish/videos",
-
-"eftguru": "https://youtube.com/@eftguru-ql8dk/videos",
-
-"anurag": "https://youtube.com/@anuragtalks1/videos",
-
-
-
+    "sreekanth": "https://youtube.com/@sreekanthvettiyar/videos",
+    "jr": "https://youtube.com/@yesitsmejr/videos",
+    "habib": "https://youtube.com/@habibomarcom/videos",
+    "unacademy": "https://youtube.com/@unacademyiasenglish/videos",
+    "eftguru": "https://youtube.com/@eftguru-ql8dk/videos",
+    "anurag": "https://youtube.com/@anuragtalks1/videos",
 }
 
 VIDEO_CACHE = {
@@ -100,12 +91,6 @@ def format_upload_month(upload_date):
     except Exception:
         return "Unknown"
 
-def sanitize_unicode(text):
-    try:
-        return text.encode("latin1", "ignore").decode("latin1")
-    except:
-        return text
-
 def download_and_convert(channel, video_url):
     final_path = TMP_DIR / f"{channel}.mp3"
     if final_path.exists():
@@ -135,8 +120,8 @@ def download_and_convert(channel, video_url):
             return None
 
         info = VIDEO_CACHE[channel]
-        title = sanitize_unicode(info.get("title", channel))
-        artist = sanitize_unicode(info.get("channel", channel))
+        title = info.get("title", channel)
+        artist = info.get("channel", channel)
         album = format_upload_month(info.get("upload_date", ""))
 
         subprocess.run([
