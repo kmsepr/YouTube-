@@ -20,6 +20,9 @@ EXPIRE_AGE = 7200             # 2 hours
 FIXED_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
 
 CHANNELS = {
+
+   "drali": "https://youtube.com/@draligomaa/videos",
+    "yaqeen": "https://youtube.com/@yaqeeninstituteofficial/videos",
     "ccm": "https://youtube.com/@cambridgecentralmosque/videos",
     "maheen": "https://youtube.com/@hitchhikingnomaad/videos",
     "entri": "https://youtube.com/@entriapp/videos",
@@ -29,8 +32,7 @@ CHANNELS = {
     "parvinder": "https://www.youtube.com/@pravindersheoran/videos",
     "qasimi": "https://www.youtube.com/@quranstudycentremukkam/videos",
     "sharique": "https://youtube.com/@shariquesamsudheen/videos",
-    "drali": "https://youtube.com/@draligomaa/videos",
-    "yaqeen": "https://youtube.com/@yaqeeninstituteofficial/videos",
+ 
     "talent": "https://youtube.com/@talentacademyonline/videos",
     "vijayakumarblathur": "https://youtube.com/@vijayakumarblathur/videos",
     "entridegree": "https://youtube.com/@entridegreelevelexams/videos",
