@@ -21,6 +21,10 @@ FIXED_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
 
 CHANNELS = {
 
+
+ "entridegree": "https://youtube.com/@entridegreelevelexams/videos",
+     "talent": "https://youtube.com/@talentacademyonline/videos",
+
    "drali": "https://youtube.com/@draligomaa/videos",
     "yaqeen": "https://youtube.com/@yaqeeninstituteofficial/videos",
     "ccm": "https://youtube.com/@cambridgecentralmosque/videos",
@@ -33,9 +37,9 @@ CHANNELS = {
     "qasimi": "https://www.youtube.com/@quranstudycentremukkam/videos",
     "sharique": "https://youtube.com/@shariquesamsudheen/videos",
  
-    "talent": "https://youtube.com/@talentacademyonline/videos",
+   
     "vijayakumarblathur": "https://youtube.com/@vijayakumarblathur/videos",
-    "entridegree": "https://youtube.com/@entridegreelevelexams/videos",
+    
     "suprabhatam": "https://youtube.com/@suprabhaatham2023/videos",
     "bayyinah": "https://youtube.com/@bayyinah/videos",
     "vallathorukatha": "https://www.youtube.com/@babu_ramachandran/videos",
