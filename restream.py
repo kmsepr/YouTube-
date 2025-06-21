@@ -266,10 +266,53 @@ def stream_mp3(channel):
 @app.route("/")
 def index():
     html = """
-    <html><head><title>YouTube Mp3</title></head>
-    <body style="font-family:sans-serif; font-size:12px; background:#fff;">
-    <h3>YouTube Mp3</h3>
+    <html>
+    <head>
+        <title>YouTube Mp3</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+            body {
+                font-family: sans-serif;
+                font-size: 14px;
+                background: #fff;
+                margin: 0;
+                padding: 10px;
+            }
+            h3 {
+                text-align: center;
+            }
+            .grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+                gap: 10px;
+            }
+            .card {
+                border: 1px solid #ccc;
+                border-radius: 8px;
+                padding: 6px;
+                background: #f9f9f9;
+            }
+            .card img {
+                width: 100%;
+                height: auto;
+                border-radius: 4px;
+                margin-bottom: 4px;
+            }
+            .card a {
+                color: #000;
+                text-decoration: none;
+                font-weight: bold;
+            }
+            .card small {
+                color: #666;
+            }
+        </style>
+    </head>
+    <body>
+        <h3>YouTube Mp3</h3>
+        <div class="grid">
     """
+
     def get_upload_date(channel):
         return VIDEO_CACHE[channel].get("upload_date", "Unknown")
 
@@ -280,17 +323,21 @@ def index():
         thumbnail = (VIDEO_CACHE[channel].get("thumbnail", "") or "http://via.placeholder.com/120x80?text=YT").replace("https://", "http://")
         upload_date = get_upload_date(channel)
         html += f"""
-        <div style="margin-bottom:12px; padding:6px; border:1px solid #ccc; border-radius:6px; width:160px;">
-            <img src="{thumbnail}" loading="lazy" style="width:100%; height:auto; display:block; margin-bottom:4px;" alt="{channel}">
-            <div style="text-align:center;">
-                <a href="/{channel}.mp3" style="color:#000; text-decoration:none;">{channel}</a><br>
-                <small>{upload_date}</small>
+            <div class="card">
+                <img src="{thumbnail}" loading="lazy" alt="{channel}">
+                <div style="text-align:center;">
+                    <a href="/{channel}.mp3">{channel}</a><br>
+                    <small>{upload_date}</small>
+                </div>
             </div>
-        </div>
         """
-    html += "</body></html>"
-    return html
 
+    html += """
+        </div>
+    </body>
+    </html>
+    """
+    return html
 threading.Thread(target=update_video_cache_loop, daemon=True).start()
 threading.Thread(target=auto_download_mp3s, daemon=True).start()
 threading.Thread(target=cleanup_old_files, daemon=True).start()
