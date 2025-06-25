@@ -276,7 +276,7 @@ def index():
                 font-size: 14px;
                 background: #fff;
                 margin: 0;
-                padding: 10px;
+                padding-top: 80px;
             }
             h3 {
                 text-align: center;
@@ -285,6 +285,7 @@ def index():
                 display: grid;
                 grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
                 gap: 10px;
+                padding: 10px;
             }
             .card {
                 border: 1px solid #ccc;
@@ -306,9 +307,39 @@ def index():
             .card small {
                 color: #666;
             }
+            audio {
+                width: 100%;
+                margin-top: 4px;
+            }
+            .fixed-player {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                background: #222;
+                color: #fff;
+                padding: 10px;
+                z-index: 1000;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+            }
+            .fixed-player audio {
+                width: 100%;
+                max-width: 320px;
+            }
+            .fixed-player small {
+                color: #ccc;
+                margin-bottom: 4px;
+            }
         </style>
     </head>
     <body>
+        <div class="fixed-player" id="playerBar" style="display:none;">
+            <small>Last played:</small>
+            <audio controls id="mainPlayer"></audio>
+        </div>
+
         <h3>YouTube Mp3</h3>
         <div class="grid">
     """
@@ -329,11 +360,57 @@ def index():
                     <a href="/{channel}.mp3">{channel}</a><br>
                     <small>{upload_date}</small>
                 </div>
+                <audio controls preload="none">
+                    <source src="/{channel}.mp3" type="audio/mpeg">
+                    Your browser does not support the audio element.
+                </audio>
             </div>
         """
 
     html += """
         </div>
+
+        <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            const audios = document.querySelectorAll("audio");
+            const mainPlayer = document.getElementById("mainPlayer");
+            const playerBar = document.getElementById("playerBar");
+
+            audios.forEach(audio => {
+                const src = audio.querySelector("source").src;
+                const key = "pos_" + src;
+
+                // Restore position if available
+                const savedTime = localStorage.getItem(key);
+                if (savedTime) audio.currentTime = parseFloat(savedTime);
+
+                // Save position
+                audio.ontimeupdate = () => {
+                    localStorage.setItem(key, audio.currentTime);
+                };
+
+                // When played, save as last played
+                audio.onplay = () => {
+                    localStorage.setItem("last_played_audio", src);
+                    localStorage.setItem("pos_" + src, audio.currentTime);
+                };
+            });
+
+            // Load last played in main player
+            const last = localStorage.getItem("last_played_audio");
+            if (last) {
+                mainPlayer.src = last;
+                const pos = localStorage.getItem("pos_" + last);
+                if (pos) {
+                    mainPlayer.currentTime = parseFloat(pos);
+                }
+                mainPlayer.ontimeupdate = () => {
+                    localStorage.setItem("pos_" + last, mainPlayer.currentTime);
+                };
+                playerBar.style.display = "flex";
+            }
+        });
+        </script>
     </body>
     </html>
     """
