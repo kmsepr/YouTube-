@@ -1,267 +1,35 @@
+from flask import Flask, Response, request
 import os
 import time
 import json
 import subprocess
 import logging
 import threading
-from flask import Flask, Response, request
 from pathlib import Path
 from datetime import datetime
 
 app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 
-# Interval settings
-REFRESH_INTERVAL = 1200       # 20 minutes
-RECHECK_INTERVAL = 3600       # 60 minutes
-EXPIRE_AGE = 7200             # 2 hours
-
-# Fixed user agent
+REFRESH_INTERVAL = 1200
+RECHECK_INTERVAL = 3600
+EXPIRE_AGE = 7200
 FIXED_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
 
 CHANNELS = {
-
-"vallathorukatha": "https://www.youtube.com/@babu_ramachandran/videos",
-    "furqan": "https://youtube.com/@alfurqan4991/videos",
-    "skicr": "https://youtube.com/@skicrtv/videos",
-    "dhruvrathee": "https://youtube.com/@dhruvrathee/videos",
-    "safari": "https://youtube.com/@safaritvlive/videos",
-
-"qasimi": "https://www.youtube.com/@quranstudycentremukkam/videos",
-    "sharique": "https://youtube.com/@shariquesamsudheen/videos",
- 
-   
-    "vijayakumarblathur": "https://youtube.com/@vijayakumarblathur/videos",
- "entridegree": "https://youtube.com/@entridegreelevelexams/videos",
-     "talent": "https://youtube.com/@talentacademyonline/videos",
-
-   "drali": "https://youtube.com/@draligomaa/videos",
-    "yaqeen": "https://youtube.com/@yaqeeninstituteofficial/videos",
-    "ccm": "https://youtube.com/@cambridgecentralmosque/videos",
-    "maheen": "https://youtube.com/@hitchhikingnomaad/videos",
-    "entri": "https://youtube.com/@entriapp/videos",
-    "zamzam": "https://youtube.com/@zamzamacademy/videos",
-    "jrstudio": "https://youtube.com/@jrstudiomalayalam/videos",
-    "raftalks": "https://youtube.com/@raftalksmalayalam/videos",
-    "parvinder": "https://www.youtube.com/@pravindersheoran/videos",
-    
-    
-    "suprabhatam": "https://youtube.com/@suprabhaatham2023/videos",
-    "bayyinah": "https://youtube.com/@bayyinah/videos",
-    
-    "sunnxt": "https://youtube.com/@sunnxtmalayalam/videos",
-    "movieworld": "https://youtube.com/@movieworldmalayalammovies/videos",
-    "comedy": "https://youtube.com/@malayalamcomedyscene5334/videos",
-    "studyiq": "https://youtube.com/@studyiqiasenglish/videos",
-    "sreekanth": "https://youtube.com/@sreekanthvettiyar/videos",
-    "jr": "https://youtube.com/@yesitsmejr/videos",
-    "habib": "https://youtube.com/@habibomarcom/videos",
-    "unacademy": "https://youtube.com/@unacademyiasenglish/videos",
-    "eftguru": "https://youtube.com/@eftguru-ql8dk/videos",
-    "anurag": "https://youtube.com/@anuragtalks1/videos",
+    "drali": "https://youtube.com/@draligomaa/videos",
+    "suprabhatam": "https://youtube.com/@suprabhaatham2023/videos"
 }
 
 VIDEO_CACHE = {
-    name: {"url": None, "last_checked": 0, "thumbnail": "", "upload_date": "", "title": "", "channel": ""}
-    for name in CHANNELS
+    name: {
+        "url": None, "last_checked": 0, "thumbnail": "",
+        "upload_date": "", "title": "", "channel": ""
+    } for name in CHANNELS
 }
 LAST_VIDEO_ID = {name: None for name in CHANNELS}
 TMP_DIR = Path("/tmp/ytmp3")
 TMP_DIR.mkdir(exist_ok=True)
-
-def fetch_latest_video_url(name, channel_url):
-    try:
-        result = subprocess.run([
-            "yt-dlp",
-            "--dump-single-json",
-            "--playlist-end", "1",
-            "--cookies", "/mnt/data/cookies.txt",
-            "--user-agent", FIXED_USER_AGENT,
-            channel_url
-        ], capture_output=True, text=True, check=True)
-
-        data = json.loads(result.stdout)
-        video = data["entries"][0]
-        video_id = video["id"]
-        thumbnail_url = video.get("thumbnail", "")
-        upload_date = video.get("upload_date", "")
-        title = video.get("title", "")
-        channel = video.get("channel", "")
-        return f"https://www.youtube.com/watch?v={video_id}", thumbnail_url, video_id, upload_date, title, channel
-    except Exception as e:
-        logging.error(f"Error fetching video from {channel_url}: {e}")
-        return None, None, None, None, None, None
-
-def format_upload_month(upload_date):
-    try:
-        dt = datetime.strptime(upload_date, "%Y%m%d")
-        return dt.strftime("%B %Y")  # e.g., "April 2025"
-    except Exception:
-        return "Unknown"
-
-def download_and_convert(channel, video_url):
-    final_path = TMP_DIR / f"{channel}.mp3"
-    if final_path.exists():
-        return final_path
-    if not video_url:
-        return None
-
-    try:
-        base_path = TMP_DIR / channel
-        audio_path = base_path.with_suffix(".webm")
-        thumb_path = base_path.with_suffix(".jpg")
-
-        # Download best audio and thumbnail
-        subprocess.run([
-            "yt-dlp",
-            "-f", "bestaudio",
-            "--output", str(base_path) + ".%(ext)s",
-            "--write-thumbnail",
-            "--convert-thumbnails", "jpg",
-            "--cookies", "/mnt/data/cookies.txt",
-            "--user-agent", FIXED_USER_AGENT,
-            video_url
-        ], check=True)
-
-        if not audio_path.exists() or not thumb_path.exists():
-            logging.error(f"Missing audio or thumbnail for {channel}")
-            return None
-
-        info = VIDEO_CACHE[channel]
-        title = info.get("title", channel)
-        artist = info.get("channel", channel)
-        album = format_upload_month(info.get("upload_date", ""))
-
-        subprocess.run([
-            "ffmpeg", "-y",
-            "-i", str(audio_path),
-            "-i", str(thumb_path),
-            "-map", "0:a",
-            "-map", "1:v",
-            "-c:a", "libmp3lame",
-            "-c:v", "mjpeg",
-            "-b:a", "64k",
-            "-ar", "22050",
-            "-ac", "1",
-            "-id3v2_version", "3",
-            "-metadata", f"title={title}",
-            "-metadata", f"album={album}",
-            "-metadata", f"artist={artist}",
-            "-disposition:v", "attached_pic",
-            str(final_path)
-        ], check=True)
-
-        audio_path.unlink(missing_ok=True)
-        thumb_path.unlink(missing_ok=True)
-
-        return final_path if final_path.exists() else None
-    except Exception as e:
-        logging.error(f"Error converting {channel}: {e}")
-        partial = final_path.with_suffix(".mp3.part")
-        if partial.exists():
-            partial.unlink()
-        return None
-
-def cleanup_old_files():
-    while True:
-        current_time = time.time()
-        for file in TMP_DIR.glob("*.mp3"):
-            if current_time - file.stat().st_mtime > EXPIRE_AGE:
-                try:
-                    logging.info(f"Cleaning up old file: {file}")
-                    file.unlink()
-                except Exception as e:
-                    logging.error(f"Error cleaning up file {file}: {e}")
-        time.sleep(EXPIRE_AGE)
-
-def update_video_cache_loop():
-    while True:
-        for name, url in CHANNELS.items():
-            video_url, thumbnail, video_id, upload_date, title, channel_name = fetch_latest_video_url(name, url)
-            if video_url and video_id:
-                if LAST_VIDEO_ID[name] != video_id:
-                    LAST_VIDEO_ID[name] = video_id
-                    VIDEO_CACHE[name].update({
-                        "url": video_url,
-                        "last_checked": time.time(),
-                        "thumbnail": thumbnail,
-                        "upload_date": upload_date,
-                        "title": title,
-                        "channel": channel_name,
-                    })
-                    download_and_convert(name, video_url)
-            time.sleep(3)
-        time.sleep(REFRESH_INTERVAL)
-
-def auto_download_mp3s():
-    while True:
-        for name, data in VIDEO_CACHE.items():
-            video_url = data.get("url")
-            if video_url:
-                mp3_path = TMP_DIR / f"{name}.mp3"
-                if not mp3_path.exists() or time.time() - mp3_path.stat().st_mtime > RECHECK_INTERVAL:
-                    logging.info(f"Pre-downloading {name}")
-                    download_and_convert(name, video_url)
-            time.sleep(3)
-        time.sleep(RECHECK_INTERVAL)
-
-@app.route("/<channel>.mp3")
-def stream_mp3(channel):
-    if channel not in CHANNELS:
-        return "Channel not found", 404
-
-    data = VIDEO_CACHE[channel]
-    video_url = data.get("url")
-    if not video_url:
-        video_url, thumbnail, video_id, upload_date, title, channel_name = fetch_latest_video_url(channel, CHANNELS[channel])
-        if not video_url:
-            return "Unable to fetch video", 500
-        if video_id and LAST_VIDEO_ID[channel] != video_id:
-            LAST_VIDEO_ID[channel] = video_id
-            VIDEO_CACHE[channel].update({
-                "url": video_url,
-                "last_checked": time.time(),
-                "thumbnail": thumbnail,
-                "upload_date": upload_date,
-                "title": title,
-                "channel": channel_name,
-            })
-
-    mp3_path = download_and_convert(channel, video_url)
-    if not mp3_path or not mp3_path.exists():
-        return "Error preparing stream", 500
-
-    file_size = os.path.getsize(mp3_path)
-    range_header = request.headers.get('Range', None)
-    headers = {
-        'Content-Type': 'audio/mpeg',
-        'Accept-Ranges': 'bytes',
-    }
-
-    if range_header:
-        try:
-            range_value = range_header.strip().split("=")[1]
-            byte1, byte2 = range_value.split("-")
-            byte1 = int(byte1)
-            byte2 = int(byte2) if byte2 else file_size - 1
-        except Exception as e:
-            return f"Invalid Range header: {e}", 400
-
-        length = byte2 - byte1 + 1
-        with open(mp3_path, 'rb') as f:
-            f.seek(byte1)
-            chunk = f.read(length)
-
-        headers.update({
-            'Content-Range': f'bytes {byte1}-{byte2}/{file_size}',
-            'Content-Length': str(length)
-        })
-        return Response(chunk, status=206, headers=headers)
-
-    with open(mp3_path, 'rb') as f:
-        data = f.read()
-    headers['Content-Length'] = str(file_size)
-    return Response(data, headers=headers)
 
 @app.route("/")
 def index():
@@ -271,67 +39,18 @@ def index():
         <title>YouTube Mp3</title>
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <style>
-            body {
-                font-family: sans-serif;
-                font-size: 14px;
-                background: #fff;
-                margin: 0;
-                padding-top: 80px;
-            }
-            h3 {
-                text-align: center;
-            }
-            .grid {
-                display: grid;
-                grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-                gap: 10px;
-                padding: 10px;
-            }
-            .card {
-                border: 1px solid #ccc;
-                border-radius: 8px;
-                padding: 6px;
-                background: #f9f9f9;
-            }
-            .card img {
-                width: 100%;
-                height: auto;
-                border-radius: 4px;
-                margin-bottom: 4px;
-            }
-            .card a {
-                color: #000;
-                text-decoration: none;
-                font-weight: bold;
-            }
-            .card small {
-                color: #666;
-            }
-            audio {
-                width: 100%;
-                margin-top: 4px;
-            }
+            body { font-family: sans-serif; padding-top: 80px; }
+            .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; padding: 10px; }
+            .card { border: 1px solid #ccc; border-radius: 8px; padding: 6px; background: #f9f9f9; }
+            .card img { width: 100%; height: auto; border-radius: 4px; }
+            .card a { text-decoration: none; font-weight: bold; }
             .fixed-player {
-                position: fixed;
-                top: 0;
-                left: 0;
-                right: 0;
-                background: #222;
-                color: #fff;
-                padding: 10px;
-                z-index: 1000;
-                display: flex;
-                flex-direction: column;
-                align-items: center;
+                position: fixed; top: 0; left: 0; right: 0;
+                background: #222; color: #fff;
+                padding: 10px; z-index: 1000;
+                display: flex; flex-direction: column; align-items: center;
             }
-            .fixed-player audio {
-                width: 100%;
-                max-width: 320px;
-            }
-            .fixed-player small {
-                color: #ccc;
-                margin-bottom: 4px;
-            }
+            .fixed-player audio { width: 100%; max-width: 320px; }
         </style>
     </head>
     <body>
@@ -339,85 +58,115 @@ def index():
             <small>Last played:</small>
             <audio controls id="mainPlayer"></audio>
         </div>
-
-        <h3>YouTube Mp3</h3>
+        <h3 style='text-align:center;'>YouTube Mp3</h3>
         <div class="grid">
     """
 
-    def get_upload_date(channel):
-        return VIDEO_CACHE[channel].get("upload_date", "Unknown")
+    def get_upload_date(ch): return VIDEO_CACHE[ch].get("upload_date", "Unknown")
 
-    for channel in sorted(CHANNELS, key=lambda x: get_upload_date(x), reverse=True):
-        mp3_path = TMP_DIR / f"{channel}.mp3"
+    for ch in sorted(CHANNELS, key=get_upload_date, reverse=True):
+        mp3_path = TMP_DIR / f"{ch}.mp3"
         if not mp3_path.exists():
             continue
-        thumbnail = (VIDEO_CACHE[channel].get("thumbnail", "") or "http://via.placeholder.com/120x80?text=YT").replace("https://", "http://")
-        upload_date = get_upload_date(channel)
+        thumb = VIDEO_CACHE[ch].get("thumbnail", "http://via.placeholder.com/120x80?text=YT").replace("https://", "http://")
         html += f"""
-            <div class="card">
-                <img src="{thumbnail}" loading="lazy" alt="{channel}">
-                <div style="text-align:center;">
-                    <a href="/{channel}.mp3">{channel}</a><br>
-                    <small>{upload_date}</small>
-                </div>
-                <audio controls preload="none">
-                    <source src="/{channel}.mp3" type="audio/mpeg">
-                    Your browser does not support the audio element.
-                </audio>
+        <div class='card'>
+            <img src='{thumb}' loading='lazy'>
+            <div style='text-align:center;'>
+                <a href='/play/{ch}'>{ch}</a>
             </div>
+        </div>
         """
 
     html += """
         </div>
-
         <script>
-        document.addEventListener("DOMContentLoaded", () => {
-            const audios = document.querySelectorAll("audio");
-            const mainPlayer = document.getElementById("mainPlayer");
-            const playerBar = document.getElementById("playerBar");
-
-            audios.forEach(audio => {
-                const src = audio.querySelector("source").src;
-                const key = "pos_" + src;
-
-                // Restore position if available
-                const savedTime = localStorage.getItem(key);
-                if (savedTime) audio.currentTime = parseFloat(savedTime);
-
-                // Save position
-                audio.ontimeupdate = () => {
-                    localStorage.setItem(key, audio.currentTime);
-                };
-
-                // When played, save as last played
-                audio.onplay = () => {
-                    localStorage.setItem("last_played_audio", src);
-                    localStorage.setItem("pos_" + src, audio.currentTime);
-                };
-            });
-
-            // Load last played in main player
-            const last = localStorage.getItem("last_played_audio");
-            if (last) {
-                mainPlayer.src = last;
-                const pos = localStorage.getItem("pos_" + last);
-                if (pos) {
-                    mainPlayer.currentTime = parseFloat(pos);
+            document.addEventListener("DOMContentLoaded", () => {
+                const mainPlayer = document.getElementById("mainPlayer");
+                const playerBar = document.getElementById("playerBar");
+                const last = localStorage.getItem("last_played_audio");
+                if (last) {
+                    mainPlayer.src = last;
+                    const pos = localStorage.getItem("pos_" + last);
+                    if (pos) mainPlayer.currentTime = parseFloat(pos);
+                    mainPlayer.ontimeupdate = () => {
+                        localStorage.setItem("pos_" + last, mainPlayer.currentTime);
+                    };
+                    playerBar.style.display = "flex";
                 }
-                mainPlayer.ontimeupdate = () => {
-                    localStorage.setItem("pos_" + last, mainPlayer.currentTime);
-                };
-                playerBar.style.display = "flex";
-            }
-        });
+                document.addEventListener("keydown", (e) => {
+                    if (e.key === "1") {
+                        playerBar.style.display = (playerBar.style.display === "none") ? "flex" : "none";
+                    }
+                });
+            });
         </script>
-    </body>
-    </html>
+    </body></html>
     """
     return html
-threading.Thread(target=update_video_cache_loop, daemon=True).start()
-threading.Thread(target=auto_download_mp3s, daemon=True).start()
-threading.Thread(target=cleanup_old_files, daemon=True).start()
+
+@app.route("/play/<channel>")
+def play_screen(channel):
+    if channel not in CHANNELS:
+        return "Channel not found", 404
+    data = VIDEO_CACHE.get(channel, {})
+    title = data.get("title", channel)
+    thumbnail = (data.get("thumbnail") or "http://via.placeholder.com/320x180?text=YT").replace("https://", "http://")
+    mp3_url = f"/{channel}.mp3"
+    return f"""
+    <html><head><title>{title}</title>
+    <meta name='viewport' content='width=device-width, initial-scale=1'>
+    <style>
+        body {{ font-family: sans-serif; padding: 20px; text-align: center; }}
+        img {{ max-width: 320px; border-radius: 10px; }}
+        audio {{ width: 100%; margin-top: 20px; }}
+        .back {{ display: inline-block; margin-bottom: 10px; padding: 8px 12px; background: #222; color: #fff; text-decoration: none; border-radius: 6px; }}
+    </style></head><body>
+    <a class='back' href='/'>← Back</a>
+    <h2>{title}</h2>
+    <img src='{thumbnail}'><br>
+    <audio controls id='player'><source src='{mp3_url}' type='audio/mpeg'></audio>
+    <script>
+        const player = document.getElementById("player");
+        const key = "pos_" + player.src;
+        const saved = localStorage.getItem(key);
+        if (saved) player.currentTime = parseFloat(saved);
+        player.ontimeupdate = () => {{
+            localStorage.setItem(key, player.currentTime);
+            localStorage.setItem("last_played_audio", player.src);
+        }};
+    </script>
+    </body></html>
+    """
+
+@app.route("/<channel>.mp3")
+def stream_mp3(channel):
+    path = TMP_DIR / f"{channel}.mp3"
+    if not path.exists():
+        return "Not found", 404
+    file_size = os.path.getsize(path)
+    range_header = request.headers.get('Range', None)
+    headers = {'Content-Type': 'audio/mpeg', 'Accept-Ranges': 'bytes'}
+    if range_header:
+        byte1, byte2 = range_header.replace("bytes=", "").split("-")
+        byte1 = int(byte1)
+        byte2 = int(byte2) if byte2 else file_size - 1
+        length = byte2 - byte1 + 1
+        with open(path, 'rb') as f:
+            f.seek(byte1)
+            data = f.read(length)
+        headers.update({
+            'Content-Range': f'bytes {byte1}-{byte2}/{file_size}',
+            'Content-Length': str(length)
+        })
+        return Response(data, status=206, headers=headers)
+    else:
+        with open(path, 'rb') as f:
+            data = f.read()
+        headers['Content-Length'] = str(file_size)
+        return Response(data, headers=headers)
+
+# Add your yt-dlp, update cache, and background thread logic below here
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000)
