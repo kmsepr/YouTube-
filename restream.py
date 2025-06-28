@@ -24,7 +24,7 @@ CHANNELS = {
 "vallathorukatha": "https://www.youtube.com/@babu_ramachandran/videos",
     "furqan": "https://youtube.com/@alfurqan4991/videos",
 
-   "rahmani": "https://www.youtube.com/@ShajahanRahmaniOfficial/videos"
+   "rahmani": "https://www.youtube.com/@ShajahanRahmaniOfficial/videos",
 
 
     "skicr": "https://youtube.com/@skicrtv/videos",
